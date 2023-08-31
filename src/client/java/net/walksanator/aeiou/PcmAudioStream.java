@@ -6,6 +6,8 @@ import javax.sound.sampled.AudioFormat;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 
+import static java.lang.Math.min;
+
 public class PcmAudioStream implements AudioStream {
     static AudioFormat FORMAT = new AudioFormat(22050,8,1,false,false);
     private final ByteBuffer buffer;
@@ -22,11 +24,12 @@ public class PcmAudioStream implements AudioStream {
     @Override
     public ByteBuffer getBuffer(int size) throws IOException {
         ByteBuffer poppedBytes = ByteBuffer.allocate(size);
-        for (int i = size;i>0;i--) {
+        for (int i = min(size,buffer.remaining());i>0;i--) {
             poppedBytes.put(buffer.get());
         }
         poppedBytes.flip();
-        return poppedBytes;
+        AeiouMod.LOGGER.info("yielding %d bytes".formatted(size));
+        return poppedBytes.hasRemaining()?poppedBytes:null;
     }
 
     @Override

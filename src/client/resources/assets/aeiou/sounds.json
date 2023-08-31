@@ -1,0 +1,10 @@
+{
+	"pcm": {
+		"sounds": [
+			{
+				"name": "aeiou:warning",
+				"stream": true
+			}
+		]
+	}
+}
