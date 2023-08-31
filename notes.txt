@@ -1,0 +1,9 @@
+struct Packet {
+  sender_uuid: [u64;2] // the UUID of the person who sent this message (so client can mute player for example)
+  stream_id: u8 //this continually loops around, assuming 256 diffrent chat messages are coming in at once this *should* be fine
+  num_packets: u8 //the number of 5 second audio packets apart of this stream
+  packet_index: u8 // which number packet this (incase they come out of order)
+  bytes: [u8;882000] // 5 seconds of 8-bit pcm @ 22050 hz  
+}
+
+use SoundInstance.getAudioStream to get auio channel and just shove AudioStreams into it

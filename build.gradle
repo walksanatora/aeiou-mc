@@ -22,7 +22,7 @@ loom {
     splitEnvironmentSourceSets()
 
 	mods {
-		"modid" {
+		"aeiou" {
 			sourceSet sourceSets.main
 			sourceSet sourceSets.client
 		}

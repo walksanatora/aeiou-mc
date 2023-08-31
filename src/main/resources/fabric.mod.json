@@ -1,31 +1,30 @@
 {
 	"schemaVersion": 1,
-	"id": "modid",
+	"id": "aeiou",
 	"version": "${version}",
-	"name": "Example mod",
-	"description": "This is an example description! Tell everyone what your mod is about!",
+	"name": "TTS mod",
+	"description": "This mod adds TTS (Sam and Dectalk) to the minecraft server-side (checkgithub for instructions)",
 	"authors": [
-		"Me!"
+		"Walksanator"
 	],
 	"contact": {
-		"homepage": "https://fabricmc.net/",
-		"sources": "https://github.com/FabricMC/fabric-example-mod"
+		"sources": "https://github.com/walksanatora/aeiou-mc"
 	},
 	"license": "CC0-1.0",
-	"icon": "assets/modid/icon.png",
+	"icon": "assets/aeiou/icon.png",
 	"environment": "*",
 	"entrypoints": {
 		"main": [
-			"com.example.ExampleMod"
+			"net.walksanator.aeiou.AeiouMod"
 		],
 		"client": [
-			"com.example.ExampleModClient"
+			"net.walksanator.aeiou.AeiouModClient"
 		]
 	},
 	"mixins": [
-		"modid.mixins.json",
+		"aeiou.mixins.json",
 		{
-			"config": "modid.client.mixins.json",
+			"config": "aeiou.client.mixins.json",
 			"environment": "client"
 		}
 	],
@@ -34,8 +33,5 @@
 		"minecraft": "~1.20.1",
 		"java": ">=17",
 		"fabric-api": "*"
-	},
-	"suggests": {
-		"another-mod": "*"
 	}
 }
