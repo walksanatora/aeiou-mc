@@ -1,6 +1,8 @@
 package net.walksanator.aeiou;
 
 import net.minecraft.client.sound.AudioStream;
+import org.jetbrains.annotations.Nullable;
+import org.lwjgl.BufferUtils;
 
 import javax.sound.sampled.AudioFormat;
 import java.io.IOException;
@@ -21,15 +23,19 @@ public class PcmAudioStream implements AudioStream {
         return FORMAT;
     }
 
+    @Nullable
     @Override
-    public ByteBuffer getBuffer(int size) throws IOException {
-        ByteBuffer poppedBytes = ByteBuffer.allocate(size);
-        for (int i = min(size,buffer.remaining());i>0;i--) {
-            poppedBytes.put(buffer.get());
-        }
-        poppedBytes.flip();
-        AeiouMod.LOGGER.info("yielding %d bytes".formatted(size));
-        return poppedBytes.hasRemaining()?poppedBytes:null;
+    public synchronized ByteBuffer getBuffer(int capacity) {
+        ByteBuffer result = BufferUtils.createByteBuffer(capacity);
+        int toRead = Math.min(buffer.remaining(), result.remaining());
+        result.put(result.position(), buffer, buffer.position(), toRead);
+        result.position(result.position() + toRead);
+        buffer.position(buffer.position() + toRead);
+
+        result.flip();
+
+        // This is naughty, but ensures we're not enqueuing empty buffers when the stream is exhausted.
+        return result.remaining() == 0 ? null : result;
     }
 
     @Override

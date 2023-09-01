@@ -23,10 +23,6 @@ public abstract class ExampleClientMixin {
 		SoundManager sm = MinecraftClient.getInstance().getSoundManager();
 		if (sm!=null) {
 			sm.play(new PcmSoundInstance(ByteBuffer.wrap(MassiveFileForB64Data.HELLO)));
-			AeiouMod.LOGGER.info("tried to play TTS audio. did you hear it?");
-		} else {
-			AeiouMod.LOGGER.warn("tried to play TTS audio. sound manager was null");
 		}
-		// This code is injected into the start of MinecraftClient.run()V
 	}
 }

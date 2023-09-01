@@ -16,9 +16,13 @@ public class PcmSoundInstance extends AbstractSoundInstance {
         this.PCM_INSTANCE = new PcmAudioStream(buf);
     }
 
+    public PcmSoundInstance(PcmAudioStream stream) {
+        super(new Identifier("aeiou","pcm"),SoundCategory.PLAYERS,SoundInstance.createRandom());
+        this.PCM_INSTANCE = stream;
+    }
+
     @Override
     public CompletableFuture<AudioStream> getAudioStream(SoundLoader loader, Identifier id, boolean repeatInstantly) {
-        AeiouMod.LOGGER.info("getting audio stream");
         return CompletableFuture.completedFuture(PCM_INSTANCE);
     }
 }
