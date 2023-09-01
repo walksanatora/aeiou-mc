@@ -1,7 +1,6 @@
 package net.walksanator.aeiou.engines;
 
 import net.walksanator.aeiou.AeiouMod;
-import net.walksanator.aeiou.BetterOutputReader;
 import net.walksanator.aeiou.TTSEngine;
 
 import java.io.*;
@@ -11,31 +10,26 @@ import java.util.*;
 
 public class SAMEngine implements TTSEngine {
     private final Map<String,String> configs;
-    private Process sam_instance;
+    private final ProcessBuilder sam_builder;
 
     SAMEngine(Map<String,String> cfg) {
         this.configs = cfg;
-        ProcessBuilder sam_inline = new ProcessBuilder("sam-inline");
-        sam_inline.redirectError(ProcessBuilder.Redirect.INHERIT);
-        try {
-            sam_instance = sam_inline.start();
-        } catch (IOException e) {
-            sam_instance = null;
-        }
+        sam_builder = new ProcessBuilder("sam-inline");
+        sam_builder.redirectError(ProcessBuilder.Redirect.INHERIT);
     }
     @Override
     public ByteBuffer renderMessage(String message) throws IOException {
-        if (sam_instance != null) {
-            AeiouMod.LOGGER.info("sam instance is non-null, speaking");
-            OutputStream out = sam_instance.getOutputStream();
-            out.write(message.getBytes(StandardCharsets.UTF_8));
-            out.flush();
-            AeiouMod.LOGGER.info("written message to sam instance STDIN");
-
-            InputStream input = sam_instance.getInputStream();
-            return BetterOutputReader.betterRead(input,1000);
-        }
-        return null;
+        Process sub = sam_builder.start();
+        AeiouMod.LOGGER.info("sam instance is non-null, speaking");
+        OutputStream out = sub.getOutputStream();
+        out.write(message.getBytes(StandardCharsets.UTF_8));
+        out.flush();
+        out.close();
+        AeiouMod.LOGGER.info("written message to sam instance STDIN");
+        InputStream input = sub.getInputStream();
+        ByteBuffer temp = ByteBuffer.wrap(input.readAllBytes());
+        sub.destroy();
+        return temp;
     }
 
     @Override
@@ -85,8 +79,7 @@ public class SAMEngine implements TTSEngine {
     }
 
     @Override
-    public Map<String, String> save() {
-        sam_instance.destroy();
-        return null;
+    public Map<String, String> shutdownAndSave() {
+        return configs;
     }
 }

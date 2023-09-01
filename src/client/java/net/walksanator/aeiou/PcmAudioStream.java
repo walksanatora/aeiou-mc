@@ -31,7 +31,6 @@ public class PcmAudioStream implements AudioStream {
         result.put(result.position(), buffer, buffer.position(), toRead);
         result.position(result.position() + toRead);
         buffer.position(buffer.position() + toRead);
-
         result.flip();
 
         // This is naughty, but ensures we're not enqueuing empty buffers when the stream is exhausted.

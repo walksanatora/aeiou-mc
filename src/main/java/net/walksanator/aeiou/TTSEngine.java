@@ -6,7 +6,6 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 
 public interface TTSEngine {
     /**
@@ -18,6 +17,10 @@ public interface TTSEngine {
 
     /**
      * set a config vale on this TTS
+     * there can be ceartain configs prefixed with @ which are meant to be used internally and not directly configured
+     * current ones are
+     * \@enabled: wheter or not to speak messages by this user, "true" or "false"
+     * \@engine should be ignored as this shouldn't change
      * @param key
      * @param value
      */
@@ -25,6 +28,10 @@ public interface TTSEngine {
 
     /**
      * gets a value from the TTS config
+     * there can be ceartain configs prefixed with @ which are meant to be used internally and not directly configured
+     * current ones are
+     * \@enabled: wheter or not to speak messages by this user, "true" or "false"
+     * \@engine: the key in AeiouMod.engines to get this TTS engines initializer
      * @param key they config option to get
      * @return the value of the config
      */
@@ -50,8 +57,8 @@ public interface TTSEngine {
     Map<String,String> getRandom();
 
     /**
-     * store the TTS engine configs into
-     * @return the TTS engines config stored in a NBT compound
+     * store the TTS engine configs and shutdown anything you need
+     * @return the TTS engines config stored in a Map of config/value
      */
-    Map<String,String> save();
+    Map<String,String> shutdownAndSave();
 }

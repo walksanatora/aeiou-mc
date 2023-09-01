@@ -5,16 +5,21 @@ import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.message.v1.ServerMessageEvents;
+import net.fabricmc.fabric.api.networking.v1.PacketByteBufs;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
-import net.minecraft.command.CommandSource;
+import net.minecraft.network.PacketByteBuf;
 import net.minecraft.server.command.ServerCommandSource;
+import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
 import net.walksanator.aeiou.engines.DectalkEngine;
 import net.walksanator.aeiou.engines.SAMEngine;
+import org.apache.logging.log4j.core.jmx.Server;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import static java.lang.Math.min;
 import static net.minecraft.server.command.CommandManager.*;
 
 import java.io.IOException;
@@ -27,6 +32,7 @@ public class AeiouMod implements ModInitializer {
 	public static final Map<String, Function<Map<String,String>,TTSEngine>> engines = new HashMap<>();
 	public static TTSPersistentState config_state;
 	public static Map<UUID,TTSEngine> active_engines = new HashMap<>();
+	private static byte rolling = -128;
 
 	public static final Identifier S2CMessagePacketID = new Identifier("aeiou","pcm_audio");
 
@@ -50,9 +56,7 @@ public class AeiouMod implements ModInitializer {
 			engines.put("sam", SAMEngine::initialize);
 		}
 
-		ServerLifecycleEvents.SERVER_STARTED.register((minecraftServer)-> {
-			config_state = TTSPersistentState.getServerState(minecraftServer);
-		});
+		ServerLifecycleEvents.SERVER_STARTED.register((minecraftServer)-> config_state = TTSPersistentState.getServerState(minecraftServer));
 
 		ServerPlayConnectionEvents.JOIN.register((serverPlayNetworkHandler,packetSender,minecraftServer)-> {
 			if (config_state == null) {
@@ -60,9 +64,9 @@ public class AeiouMod implements ModInitializer {
 			}
 			UUID new_player = serverPlayNetworkHandler.player.getUuid();
 			String name = serverPlayNetworkHandler.getPlayer().getName().getString();
-			Map<String,String> mabey_config = config_state.get(new_player);
-			if (mabey_config == null) {
-				//they dont have any config. generate a random one for them
+			Map<String,String> possibly_config = config_state.get(new_player);
+			if (possibly_config == null) {
+				//they don't have any config. generate a random one for them
 				Random rng = new Random();
 				List<String> keys = new ArrayList<>(engines.keySet());
 				String engine = keys.get(rng.nextInt(keys.size()));
@@ -76,10 +80,10 @@ public class AeiouMod implements ModInitializer {
 				LOGGER.info("Created new random configs for %s using %s".formatted(name,engine));
 				active_engines.put(new_player,builder.apply(random_configs));
 			} else {
-				String engine = mabey_config.get("@engine");
+				String engine = possibly_config.get("@engine");
 				if (engine != null) {
 					LOGGER.info("%s is using TTS: %s".formatted(name,engine));
-					active_engines.put(new_player, engines.get(engine).apply(mabey_config));
+					active_engines.put(new_player, engines.get(engine).apply(possibly_config));
 				} else {
 					LOGGER.error("%s has config, but no TTS!?".formatted(name));
 					config_state.remove(new_player);
@@ -91,7 +95,7 @@ public class AeiouMod implements ModInitializer {
 			LOGGER.warn("LEAVE EVENT IS NYI");
 			UUID new_player = serverPlayNetworkHandler.player.getUuid();
 			if (active_engines.containsKey(new_player)) {
-				config_state.put(new_player,active_engines.remove(new_player).save());
+				config_state.put(new_player,active_engines.remove(new_player).shutdownAndSave());
 			} else {
 				LOGGER.warn("%s disconnected without any running TTS engine!?".formatted(serverPlayNetworkHandler.getPlayer().getName().getString()));
 			}
@@ -111,20 +115,46 @@ public class AeiouMod implements ModInitializer {
 					if (sound==null) {throw new IOException();}
 					int size = sound.remaining();
 					int buffers = (size/(22050*5))+1;
+					LOGGER.info("we will need to send %d buffers for %d bytes".formatted(buffers,size));
+					List<ServerPlayerEntity> players = serverPlayerEntity.getServer().getPlayerManager().getPlayerList();
+					for (int i=1; i<=buffers;i++) {
+						PacketByteBuf pbb = PacketByteBufs.create();
+						pbb.writeUuid(player);
+						pbb.writeByte(rolling);
+						pbb.writeByte(buffers);
+						pbb.writeByte(i);
+						byte[] subarray = new byte[22050*5];
+						sound.get(0,subarray,0,min(subarray.length,sound.remaining()));
+						pbb.writeBytes(sound);
+						for (ServerPlayerEntity reciever : players) {
+							ServerPlayNetworking.send(reciever,S2CMessagePacketID,new PacketByteBuf(pbb.copy()));
+						}
+					}
+					rolling+=1;
 
 				} catch (IOException e) {
 					LOGGER.warn("Failed to render message");
 					e.printStackTrace();
 				}
-				//ServerPlayNetworking.send(serverPlayerEntity,S2CMessagePacketID,);
 			} else {
 				LOGGER.warn("%s has no active TTS, it should have been made when they joined!!".formatted(serverPlayerEntity.getName().getString()));
 			}
 		});
 
+		//noinspection CodeBlock2Expr
 		CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment)-> {
 			dispatcher.register(literal("tts")
 					.then(literal("tts")
+							.executes(context -> {
+								UUID speaker = context.getSource().getEntityOrThrow().getUuid();
+								TTSEngine engine = active_engines.get(speaker);
+								if (engine != null) {
+									context.getSource().sendMessage(Text.literal("Current engine: %s".formatted(engine.getConfig("@engine"))));
+								} else {
+									context.getSource().sendMessage(Text.literal("no active engine"));
+								}
+								return 1;
+							})
 							.then(argument("engine", StringArgumentType.word()).executes(context -> {
 								String engine = context.getArgument("engine",String.class);
 								UUID speaker = context.getSource().getEntityOrThrow().getUuid();
@@ -134,11 +164,11 @@ public class AeiouMod implements ModInitializer {
 									source.sendMessage(Text.literal("invalid TTS, must be one of %s".formatted(engines.keySet().toString())));
 									return 0;
 								}
-								active_engines.remove(speaker).save(); // dispose of TTS and all it's configs
+								active_engines.remove(speaker).shutdownAndSave(); // dispose of TTS and all it's configs
 								TTSEngine temp = selected.apply(new HashMap<>());
 								Map<String,String> random_configs = temp.getRandom();
 								random_configs.put("@engine",engine);
-								random_configs.put("@enabled","false");
+								random_configs.put("@enabled","true");
 								LOGGER.info("Created new random configs for %s using %s".formatted(speaker,engine));
 								active_engines.put(speaker,selected.apply(random_configs));
 								source.sendMessage(Text.literal("changed TTS to %s".formatted(engine)));
