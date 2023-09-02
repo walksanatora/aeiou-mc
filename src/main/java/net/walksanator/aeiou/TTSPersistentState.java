@@ -1,23 +1,26 @@
 package net.walksanator.aeiou;
 
 import net.minecraft.nbt.NbtCompound;
+import net.minecraft.nbt.NbtElement;
+import net.minecraft.nbt.NbtList;
 import net.minecraft.nbt.NbtString;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.PersistentState;
 import net.minecraft.world.PersistentStateManager;
 import net.minecraft.world.World;
 
-import java.util.HashMap;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 
 public class TTSPersistentState extends PersistentState {
     Map<UUID, Map<String,String>> configurations;
+    List<UUID> banned;
     TTSPersistentState() {
         this.configurations = new HashMap<>();
+        this.banned = new ArrayList<>();
     }
     @Override
     public NbtCompound writeNbt(NbtCompound nbt) {
+        NbtCompound tts_configs = new NbtCompound();
         for (UUID key : configurations.keySet()) {
             String cfg_owner = key.toString();
             Map<String,String> subtag = configurations.get(key);
@@ -25,13 +28,23 @@ public class TTSPersistentState extends PersistentState {
             for (String cfg : subtag.keySet()) {
                 configs.put(cfg, NbtString.of(subtag.get(cfg)));
             }
-            nbt.put(cfg_owner,configs);
+            tts_configs.put(cfg_owner,configs);
         }
+        nbt.put("tts_configs",tts_configs);
+
+        NbtList banned_users = new NbtList();
+        for (UUID banned : banned) {
+            banned_users.add(
+                    NbtString.of(banned.toString())
+            );
+        }
+        nbt.put("banned",banned_users);
         return nbt;
     }
 
     public static TTSPersistentState createFromNbt(NbtCompound tag) {
         TTSPersistentState serverState = new TTSPersistentState();
+
         NbtCompound configs = tag.getCompound("tts_configs");
         for (String key : configs.getKeys()) {
             UUID cfg_owner = UUID.fromString(key);
@@ -42,6 +55,14 @@ public class TTSPersistentState extends PersistentState {
             }
             serverState.configurations.put(cfg_owner,cfgs);
         }
+
+        NbtList banned_users = tag.getList("banned", NbtString.STRING_TYPE);
+        for (NbtElement banned_string : banned_users) {
+            String uuid = banned_string.toString();
+            UUID cfg_owner = UUID.fromString(uuid);
+            serverState.banned.add(cfg_owner);
+        }
+
         return serverState;
     }
 
@@ -54,6 +75,17 @@ public class TTSPersistentState extends PersistentState {
     public Map<String,String> remove(UUID player) {
         return configurations.remove(player);
     }
+
+    public boolean ban(UUID speaker) {
+        return banned.add(speaker);
+    }
+    public boolean isBanned(UUID speaker) {
+        return banned.contains(speaker);
+    }
+    public boolean unBan(UUID speaker) {
+        return banned.remove(speaker);
+    }
+
 
     public static TTSPersistentState getServerState(MinecraftServer server) {
         // First we get the persistentStateManager for the OVERWORLD

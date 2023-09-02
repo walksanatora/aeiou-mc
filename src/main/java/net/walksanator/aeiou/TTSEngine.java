@@ -27,6 +27,8 @@ public interface TTSEngine {
      */
     void updateConfig(String key, String value);
 
+    void resetConfig(String key);
+
     /**
      * gets a value from the TTS config
      * there can be certain configs prefixed with @ which are meant to be used internally and not directly configured

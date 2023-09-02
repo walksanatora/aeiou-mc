@@ -20,9 +20,9 @@ public abstract class ExampleClientMixin {
 
 	@Inject(at = @At("HEAD"), method = "init")
 	private void run(CallbackInfo info) {
-		SoundManager sm = MinecraftClient.getInstance().getSoundManager();
-		if (sm!=null) {
-			sm.play(new PcmSoundInstance(ByteBuffer.wrap(MassiveFileForB64Data.HELLO),22050));
-		}
+		//SoundManager sm = MinecraftClient.getInstance().getSoundManager();
+		//if (sm!=null) {
+		//	sm.play(new PcmSoundInstance(ByteBuffer.wrap(MassiveFileForB64Data.HELLO),22050));
+		//}
 	}
 }

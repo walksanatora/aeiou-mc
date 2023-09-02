@@ -7,9 +7,7 @@ import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
 import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 
@@ -46,6 +44,9 @@ public class DectalkEngine implements TTSEngine {
     public void updateConfig(String key, String value) {
         configs.put(key,value);
     }
+
+    @Override
+    public void resetConfig(String key) {configs.remove(key);}
 
     public static TTSEngine initialize(Map<String, String> cfg) {
         return new DectalkEngine(cfg);

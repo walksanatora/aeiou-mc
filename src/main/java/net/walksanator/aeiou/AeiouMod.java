@@ -8,6 +8,9 @@ import net.fabricmc.fabric.api.message.v1.ServerMessageEvents;
 import net.fabricmc.fabric.api.networking.v1.PacketByteBufs;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
+import net.minecraft.command.EntitySelector;
+import net.minecraft.command.argument.EntityArgumentType;
+import net.minecraft.command.argument.UuidArgumentType;
 import net.minecraft.network.PacketByteBuf;
 import net.minecraft.server.command.ServerCommandSource;
 import net.minecraft.server.network.ServerPlayerEntity;
@@ -16,17 +19,17 @@ import net.minecraft.util.Identifier;
 import net.minecraft.util.Pair;
 import net.walksanator.aeiou.engines.DectalkEngine;
 import net.walksanator.aeiou.engines.SAMEngine;
-import org.apache.logging.log4j.core.jmx.Server;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import static java.lang.Math.min;
-import static net.minecraft.server.command.CommandManager.*;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.function.Function;
+
+import static java.lang.Math.min;
+import static net.minecraft.server.command.CommandManager.argument;
+import static net.minecraft.server.command.CommandManager.literal;
 
 public class AeiouMod implements ModInitializer {
 
@@ -102,10 +105,13 @@ public class AeiouMod implements ModInitializer {
 		});
 
 		ServerMessageEvents.CHAT_MESSAGE.register((signedMessage,serverPlayerEntity,parameters)->{
+			UUID player = serverPlayerEntity.getUuid();
+			if (config_state.isBanned(player)) {
+				return;
+			}
 			String message = signedMessage.getContent().getString();
 			LOGGER.info(message);
 			LOGGER.info(serverPlayerEntity.getUuidAsString());
-			UUID player = serverPlayerEntity.getUuid();
 			if (active_engines.containsKey(player)) {
 				LOGGER.info("%s has active TTS program".formatted(player));
 				try {
@@ -186,6 +192,138 @@ public class AeiouMod implements ModInitializer {
 										" cfg: changes TTS config values"
 								};
 								context.getSource().sendMessage(Text.literal(String.join("\n",helpMessage)));
+								return 1;
+							})
+					).then(literal("ban")
+							.then(argument("user", UuidArgumentType.uuid())
+									.requires(source -> source.hasPermissionLevel(4))
+									.executes(ctx -> {
+										UUID banned = ctx.getArgument("user",UUID.class);
+										ServerCommandSource src = ctx.getSource();
+										if (config_state.ban(banned)) {
+											src.sendMessage(Text.literal("Banned \"User\""));
+										} else {
+											src.sendMessage(Text.literal("\"User\" was already banned"));
+										}
+										return 1;
+									})
+							).then(argument("user", EntityArgumentType.player())
+									.requires(source -> source.hasPermissionLevel(4))
+									.executes( ctx -> {
+										EntitySelector player = ctx.getArgument("user", EntitySelector.class);
+										ServerCommandSource src = ctx.getSource();
+										UUID banned = player.getPlayer(src).getUuid();
+										if (config_state.ban(banned)) {
+											src.sendMessage(Text.literal("Banned \"User\""));
+										} else {
+											src.sendMessage(Text.literal("\"User\" was already banned"));
+										}
+										return 1;
+									})
+							)
+					).then(literal("unban")
+							.then(argument("user", UuidArgumentType.uuid())
+									.requires(source -> source.hasPermissionLevel(4))
+									.executes(ctx -> {
+										UUID banned = ctx.getArgument("user",UUID.class);
+										ServerCommandSource src = ctx.getSource();
+										if (config_state.unBan(banned)) {
+											src.sendMessage(Text.literal("Unbanned \"User\""));
+										} else {
+											src.sendMessage(Text.literal("\"User\" was not banned"));
+										}
+										return 1;
+									})
+							).then(argument("user", EntityArgumentType.player())
+									.requires(source -> source.hasPermissionLevel(4))
+									.executes( ctx -> {
+										EntitySelector player = ctx.getArgument("user", EntitySelector.class);
+										ServerCommandSource src = ctx.getSource();
+										UUID banned = player.getPlayer(src).getUuid();
+										if (config_state.unBan(banned)) {
+											src.sendMessage(Text.literal("Unbanned \"User\""));
+										} else {
+											src.sendMessage(Text.literal("\"User\" was not banned"));
+										}
+										return 1;
+									})
+							)
+					).then(literal("isBanned")
+							.then(argument("user", UuidArgumentType.uuid())
+									.executes(ctx -> {
+										UUID banned = ctx.getArgument("user",UUID.class);
+										ServerCommandSource src = ctx.getSource();
+										if (config_state.isBanned(banned)) {
+											src.sendMessage(Text.literal("\"User\" is banned and will not have their messages spoken"));
+										} else {
+											src.sendMessage(Text.literal("\"User\" is not banned and will have their messages spoken"));
+										}
+										return 1;
+									})
+							).then(argument("user", EntityArgumentType.player())
+									.executes( ctx -> {
+										EntitySelector player = ctx.getArgument("user", EntitySelector.class);
+										ServerCommandSource src = ctx.getSource();
+										UUID banned = player.getPlayer(src).getUuid();
+										if (config_state.isBanned(banned)) {
+											src.sendMessage(Text.literal("\"User\" is banned and will not have their messages spoken"));
+										} else {
+											src.sendMessage(Text.literal("\"User\" is not banned and will have their messages spoken"));
+										}
+										return 1;
+									})
+							)
+					).then(literal("cfg")
+									.then(argument("key",StringArgumentType.string())
+											.then(argument("value",StringArgumentType.string())
+													.executes( ctx -> {
+														ServerCommandSource src = ctx.getSource();
+														UUID speaker = src.getEntityOrThrow().getUuid();
+														String key = ctx.getArgument("key",String.class);
+														String value = ctx.getArgument("value",String.class);
+														if (active_engines.containsKey(speaker)) {
+															TTSEngine engine = active_engines.get(speaker);
+															if (engine.getConfigs().contains(key) & Objects.equals(value, "")) {
+																engine.resetConfig(key);
+																src.sendMessage(Text.literal("reset value for \"%s\"".formatted(key)));
+															} else if (engine.getConfigs().contains(key)) {
+																engine.updateConfig(key,value);
+																src.sendMessage(Text.literal("changed config value \"%s\" to \"%s\"".formatted(key,value)));
+															}
+														} else {
+															src.sendMessage(Text.literal("you don't have a TTS engine instance setup somehow?, you may wanna relog"));
+															return 0;
+														}
+														return 1;
+													})
+									).executes(ctx -> {
+										ServerCommandSource src = ctx.getSource();
+										UUID speaker = src.getEntityOrThrow().getUuid();
+										String key = ctx.getArgument("key",String.class);
+										if (active_engines.containsKey(speaker)) {
+											TTSEngine engine = active_engines.get(speaker);
+											String value = engine.getConfig(key);
+											if (value != null) {
+												src.sendMessage(Text.literal("current config value of \"%s\" is \"%s\"".formatted(key,value)));
+											} else {
+												src.sendMessage(Text.literal("config value is at default or is invalid"));
+											}
+										} else {
+											src.sendMessage(Text.literal("you don't have a TTS engine instance setup somehow?, you may wanna relog"));
+											return 0;
+										}
+										return 1;
+									})
+							).executes(ctx -> {
+								ServerCommandSource src = ctx.getSource();
+								UUID speaker = src.getEntityOrThrow().getUuid();
+								if (active_engines.containsKey(speaker)) {
+									TTSEngine engine = active_engines.get(speaker);
+									src.sendMessage(Text.literal("you are currently running engine %s".formatted(engine.getConfig("@engine"))));
+									src.sendMessage(Text.literal("possible configs are %s".formatted(engine.getDefaults().keySet().toString())));
+								} else {
+									src.sendMessage(Text.literal("you don't have a TTS engine instance setup somehow?, you may wanna relog"));
+								}
 								return 1;
 							})
 					)

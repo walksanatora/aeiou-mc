@@ -39,6 +39,9 @@ public class SAMEngine implements TTSEngine {
     }
 
     @Override
+    public void resetConfig(String key) {configs.remove(key);}
+
+    @Override
     public void updateConfig(String key, String value) {
         configs.put(key,value);
     }
