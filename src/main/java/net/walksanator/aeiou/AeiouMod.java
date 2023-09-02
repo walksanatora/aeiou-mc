@@ -10,7 +10,11 @@ import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.command.EntitySelector;
 import net.minecraft.command.argument.EntityArgumentType;
+import net.minecraft.command.argument.NbtCompoundArgumentType;
 import net.minecraft.command.argument.UuidArgumentType;
+import net.minecraft.entity.Entity;
+import net.minecraft.nbt.NbtCompound;
+import net.minecraft.nbt.NbtElement;
 import net.minecraft.network.PacketByteBuf;
 import net.minecraft.server.command.ServerCommandSource;
 import net.minecraft.server.network.ServerPlayerEntity;
@@ -341,6 +345,76 @@ public class AeiouMod implements ModInitializer {
 							})
 					)
 			);
+		dispatcher.register(literal("speak")
+				.then(argument("engine",StringArgumentType.word())
+						.then(argument("config", NbtCompoundArgumentType.nbtCompound())
+								.then(argument("message", StringArgumentType.greedyString())
+										.executes(ctx -> {
+											String engine = ctx.getArgument("engine",String.class);
+											NbtCompound conf = ctx.getArgument("config",NbtCompound.class);
+											String message = ctx.getArgument("message",String.class);
+											Entity p_entity = ctx.getSource().getEntity();
+											UUID speaker;
+											if (p_entity == null) {
+												ByteBuffer temp = ByteBuffer.allocate(16);
+												temp.putInt(conf.hashCode());
+												temp.putInt(engine.hashCode());
+												temp.flip();
+												speaker = UUID.nameUUIDFromBytes(temp.array());
+											} else {
+												speaker = p_entity.getUuid();
+											}
+
+											if (engines.containsKey(engine)) {
+												Map<String,String> proc = new HashMap<>();
+												for (String key : conf.getKeys()) {
+													proc.put(
+															key,
+															conf.getString(key)
+													);
+
+												}
+
+												TTSEngine engine_i = engines.get(engine).apply(proc);
+
+												try {
+													Pair<Integer,ByteBuffer> sound_data = engine_i.renderMessage(message);
+													int hz = sound_data.getLeft();
+													ByteBuffer sound = sound_data.getRight();
+													LOGGER.info("rendered message");
+													if (sound==null) {throw new IOException();}
+													int size = sound.remaining();
+													int buffers = (size/(22050*5))+1;
+													LOGGER.info("we will need to send %d buffers for %d bytes".formatted(buffers,size));
+													List<ServerPlayerEntity> players = ctx.getSource().getServer().getPlayerManager().getPlayerList();
+													for (int i=1; i<=buffers;i++) {
+														PacketByteBuf pbb = PacketByteBufs.create();
+														pbb.writeUuid(speaker);
+														pbb.writeByte(rolling);
+														pbb.writeByte(buffers);
+														pbb.writeByte(i);
+														pbb.writeInt(hz);
+														byte[] subarray = new byte[22050*5];
+														sound.get(0,subarray,0,min(subarray.length,sound.remaining()));
+														pbb.writeBytes(sound);
+														for (ServerPlayerEntity reciever : players) {
+															ServerPlayNetworking.send(reciever,S2CMessagePacketID,new PacketByteBuf(pbb.copy()));
+														}
+													}
+													rolling+=1;
+												} catch (IOException | InterruptedException e) {
+													ctx.getSource().sendError(Text.literal("Failed to play TTS message %s".formatted(e.getMessage())));
+												}
+
+											} else {
+												ctx.getSource().sendError(Text.literal("Engine is invalid, must be one of %s".formatted(engines.keySet().toString())));
+											}
+											return 1;
+										})
+								)
+						)
+				)
+		);
 		});
 
 	}
