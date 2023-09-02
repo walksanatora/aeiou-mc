@@ -11,11 +11,12 @@ import java.nio.ByteBuffer;
 import static java.lang.Math.min;
 
 public class PcmAudioStream implements AudioStream {
-    static AudioFormat FORMAT = new AudioFormat(22050,8,1,false,false);
+    public AudioFormat FORMAT = new AudioFormat(22050,8,1,false,false);
     private final ByteBuffer buffer;
 
-    public PcmAudioStream(ByteBuffer buffer) {
+    public PcmAudioStream(ByteBuffer buffer,int hz) {
         this.buffer = buffer;
+        this.FORMAT = new AudioFormat(hz,8,1,false,false);
     }
 
     @Override

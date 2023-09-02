@@ -1,5 +1,6 @@
 package net.walksanator.aeiou;
 
+import net.minecraft.util.Pair;
 import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
@@ -11,26 +12,26 @@ public interface TTSEngine {
     /**
      * speaks the given message
      * @param message the message to be spoken
-     * @return raw pcm audio data unsigned 8-bit numbers @22050 hz
+     * @return a Pair of the rate (hz) and a byte buffer of unsigned 8-bit pcm in little endian at the returned hz
      */
-    ByteBuffer renderMessage(String message) throws IOException;
+    Pair<Integer, ByteBuffer> renderMessage(String message) throws IOException, InterruptedException;
 
     /**
      * set a config vale on this TTS
-     * there can be ceartain configs prefixed with @ which are meant to be used internally and not directly configured
+     * there can be certain configs prefixed with @ which are meant to be used internally and not directly configured
      * current ones are
-     * \@enabled: wheter or not to speak messages by this user, "true" or "false"
+     * \@enabled: whether to speak messages by this user, "true" or "false"
      * \@engine should be ignored as this shouldn't change
-     * @param key
-     * @param value
+     * @param key the key to set
+     * @param value the value to set it to
      */
     void updateConfig(String key, String value);
 
     /**
      * gets a value from the TTS config
-     * there can be ceartain configs prefixed with @ which are meant to be used internally and not directly configured
+     * there can be certain configs prefixed with @ which are meant to be used internally and not directly configured
      * current ones are
-     * \@enabled: wheter or not to speak messages by this user, "true" or "false"
+     * \@enabled: whether to speak messages by this user, "true" or "false"
      * \@engine: the key in AeiouMod.engines to get this TTS engines initializer
      * @param key they config option to get
      * @return the value of the config

@@ -22,7 +22,7 @@ public abstract class ExampleClientMixin {
 	private void run(CallbackInfo info) {
 		SoundManager sm = MinecraftClient.getInstance().getSoundManager();
 		if (sm!=null) {
-			sm.play(new PcmSoundInstance(ByteBuffer.wrap(MassiveFileForB64Data.HELLO)));
+			sm.play(new PcmSoundInstance(ByteBuffer.wrap(MassiveFileForB64Data.HELLO),22050));
 		}
 	}
 }

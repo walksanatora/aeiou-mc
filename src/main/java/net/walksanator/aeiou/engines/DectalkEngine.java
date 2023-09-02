@@ -1,5 +1,6 @@
 package net.walksanator.aeiou.engines;
 
+import net.minecraft.util.Pair;
 import net.walksanator.aeiou.AeiouMod;
 import net.walksanator.aeiou.TTSEngine;
 import org.jetbrains.annotations.Nullable;
@@ -9,45 +10,36 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
+import java.util.concurrent.TimeUnit;
 
 public class DectalkEngine implements TTSEngine {
+    private final static String[] voices = new String[]{"[:nb]","[:nd]","[:nf]","[:nh]","[:nk]","[:np]","[:nr]","[:nu]","[:nw]"};
     private final Map<String,String> configs;
-    private final ProcessBuilder dectalk;
-    private final ProcessBuilder sox;
 
     DectalkEngine(Map<String,String> cfg) {
         this.configs = cfg;
-        sox = new ProcessBuilder("sox -t raw -r 11025 -b 8 -c 1 -e unsigned-integer - -t raw -r 22050 -b 8 -c 1 -e unsigned-integer - vol 1.4".split(" "));
-        sox.redirectErrorStream(false);
-        dectalk = new ProcessBuilder("dectalk", "-fo", "stdout:raw", "-e,", "2", "-pre",cfg.getOrDefault("init","[:phoneme on][:err off]"));
-        dectalk.redirectErrorStream(false);
     }
 
     @Override
-    public ByteBuffer renderMessage(String message) throws IOException {
-        AeiouMod.LOGGER.info("dectalk and sox instance is non-null, speaking");
+    public Pair<Integer,ByteBuffer> renderMessage(String message) throws IOException, InterruptedException {
+        ProcessBuilder dectalk = new ProcessBuilder();
+        dectalk.command(
+                "dectalk",
+                "-fo", "stdout:raw",
+                "-e", "2",
+                "-pre", configs.getOrDefault("init","[:phoneme on][:err ignore]"),
+                "-a", configs.getOrDefault("pre","[:np]"),
+                "-a", message
+        );
+        dectalk.redirectError(ProcessBuilder.Redirect.INHERIT);
+        dectalk.redirectOutput(ProcessBuilder.Redirect.PIPE);
+        AeiouMod.LOGGER.info("dectalk built");
         Process dt = dectalk.start();
-        OutputStream out = dt.getOutputStream();
-        out.write(message.getBytes(StandardCharsets.UTF_8));
-        out.flush();
-        out.close();
-        AeiouMod.LOGGER.info("written message to dectalk instance STDIN");
         InputStream input = dt.getInputStream();
-        Process sox_conv = sox.start();
-        OutputStream sox_output = sox_conv.getOutputStream();
-        input.transferTo(sox_output);
-        sox_output.close();
-        dt.destroy(); //we already finished with it so :shrugs:
-        AeiouMod.LOGGER.info("written dectalk data to sox");
-        InputStream sox_input = sox_conv.getInputStream();
-        ByteBuffer result = ByteBuffer.wrap(sox_input.readAllBytes());
-        AeiouMod.LOGGER.info("finished audio processing steps");
-        sox_conv.destroy();
-        return result;
+        dt.waitFor(500, TimeUnit.MILLISECONDS);
+        byte[] temp = input.readAllBytes();
+        return new Pair<>(11025,ByteBuffer.wrap(temp));
     }
 
     @Override
@@ -84,7 +76,13 @@ public class DectalkEngine implements TTSEngine {
 
     @Override
     public Map<String, String> getRandom() {
-        return new HashMap<>();
+        HashMap<String,String> values = new HashMap<>();
+        Random rng = new Random();
+        values.put(
+                "pre",
+                voices[rng.nextInt(voices.length)]
+        );
+        return values;
     }
 
     @Override

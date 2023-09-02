@@ -13,6 +13,7 @@ import net.minecraft.server.command.ServerCommandSource;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
+import net.minecraft.util.Pair;
 import net.walksanator.aeiou.engines.DectalkEngine;
 import net.walksanator.aeiou.engines.SAMEngine;
 import org.apache.logging.log4j.core.jmx.Server;
@@ -46,7 +47,7 @@ public class AeiouMod implements ModInitializer {
 		// However, some things (like resources) may still be uninitialized.
 		// Proceed with mild caution.
 
-		if (isProgramOnPath("dectalk")&&isProgramOnPath("sox")) {
+		if (isProgramOnPath("dectalk")) {
 			LOGGER.info("Enabling dectalk module");
 			engines.put("dectalk", DectalkEngine::initialize);
 
@@ -92,7 +93,6 @@ public class AeiouMod implements ModInitializer {
 			}
 		});
 		ServerPlayConnectionEvents.DISCONNECT.register((serverPlayNetworkHandler,minecraftServer) -> {
-			LOGGER.warn("LEAVE EVENT IS NYI");
 			UUID new_player = serverPlayNetworkHandler.player.getUuid();
 			if (active_engines.containsKey(new_player)) {
 				config_state.put(new_player,active_engines.remove(new_player).shutdownAndSave());
@@ -110,7 +110,9 @@ public class AeiouMod implements ModInitializer {
 				LOGGER.info("%s has active TTS program".formatted(player));
 				try {
 					LOGGER.info("rendering message");
-					ByteBuffer sound = active_engines.get(player).renderMessage(message);
+					Pair<Integer,ByteBuffer> sound_data = active_engines.get(player).renderMessage(message);
+					int hz = sound_data.getLeft();
+					ByteBuffer sound = sound_data.getRight();
 					LOGGER.info("rendered message");
 					if (sound==null) {throw new IOException();}
 					int size = sound.remaining();
@@ -123,6 +125,7 @@ public class AeiouMod implements ModInitializer {
 						pbb.writeByte(rolling);
 						pbb.writeByte(buffers);
 						pbb.writeByte(i);
+						pbb.writeInt(hz);
 						byte[] subarray = new byte[22050*5];
 						sound.get(0,subarray,0,min(subarray.length,sound.remaining()));
 						pbb.writeBytes(sound);
@@ -132,7 +135,7 @@ public class AeiouMod implements ModInitializer {
 					}
 					rolling+=1;
 
-				} catch (IOException e) {
+				} catch (IOException | InterruptedException e) {
 					LOGGER.warn("Failed to render message");
 					e.printStackTrace();
 				}

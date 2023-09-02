@@ -1,5 +1,6 @@
 package net.walksanator.aeiou.engines;
 
+import net.minecraft.util.Pair;
 import net.walksanator.aeiou.AeiouMod;
 import net.walksanator.aeiou.TTSEngine;
 
@@ -7,18 +8,23 @@ import java.io.*;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 
 public class SAMEngine implements TTSEngine {
     private final Map<String,String> configs;
-    private final ProcessBuilder sam_builder;
 
     SAMEngine(Map<String,String> cfg) {
         this.configs = cfg;
-        sam_builder = new ProcessBuilder("sam-inline");
-        sam_builder.redirectError(ProcessBuilder.Redirect.INHERIT);
     }
     @Override
-    public ByteBuffer renderMessage(String message) throws IOException {
+    public Pair<Integer,ByteBuffer> renderMessage(String message) throws IOException, InterruptedException {
+        ProcessBuilder sam_builder = new ProcessBuilder("sam-inline",
+                configs.getOrDefault("pitch","0"),
+                configs.getOrDefault("speed","0"),
+                configs.getOrDefault("throat", "0"),
+                configs.getOrDefault("mouth","0")
+        );
+        sam_builder.redirectError(ProcessBuilder.Redirect.INHERIT);
         Process sub = sam_builder.start();
         AeiouMod.LOGGER.info("sam instance is non-null, speaking");
         OutputStream out = sub.getOutputStream();
@@ -27,9 +33,9 @@ public class SAMEngine implements TTSEngine {
         out.close();
         AeiouMod.LOGGER.info("written message to sam instance STDIN");
         InputStream input = sub.getInputStream();
+        sub.waitFor(500, TimeUnit.MILLISECONDS);
         ByteBuffer temp = ByteBuffer.wrap(input.readAllBytes());
-        sub.destroy();
-        return temp;
+        return new Pair<>(22050,temp);
     }
 
     @Override

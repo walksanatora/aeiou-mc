@@ -22,6 +22,7 @@ public class BufWrapper {
             joined.put(buf);
         }
         buffers.clear();
+        joined.position(0);
         return joined;
     }
 }

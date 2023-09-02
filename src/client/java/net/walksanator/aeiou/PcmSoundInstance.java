@@ -11,9 +11,19 @@ import java.util.concurrent.CompletableFuture;
 
 public class PcmSoundInstance extends AbstractSoundInstance {
     PcmAudioStream PCM_INSTANCE;
-    public PcmSoundInstance(ByteBuffer buf) {
+    public PcmSoundInstance(ByteBuffer buf,int hz) {
         super(new Identifier("aeiou","pcm"),SoundCategory.PLAYERS,SoundInstance.createRandom());
-        this.PCM_INSTANCE = new PcmAudioStream(buf);
+        this.PCM_INSTANCE = new PcmAudioStream(buf,hz);
+    }
+
+    @Override
+    public boolean isRelative() {
+        return false;
+    }
+
+    @Override
+    public AttenuationType getAttenuationType() {
+        return AttenuationType.NONE;
     }
 
     public PcmSoundInstance(PcmAudioStream stream) {
