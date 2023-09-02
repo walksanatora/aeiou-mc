@@ -11,7 +11,7 @@ import java.nio.ByteBuffer;
 import static java.lang.Math.min;
 
 public class PcmAudioStream implements AudioStream {
-    public AudioFormat FORMAT = new AudioFormat(22050,8,1,false,false);
+    public final AudioFormat FORMAT ;
     private final ByteBuffer buffer;
 
     public PcmAudioStream(ByteBuffer buffer,int hz) {

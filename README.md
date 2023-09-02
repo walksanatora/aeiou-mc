@@ -15,6 +15,9 @@ since this TTS mod is "module" based it will only load the SAM/dectalk modules i
 you can compile dectalk from [https://github.com/dectalk/dectalk](https://github.com/dectalk/dectalk)<br>
 and you need to compile sam-inline from my fork of sam [https://github.com/walksanatora/SAM](https://github.com/walksanatora/SAM)<br>
 and put them on path.<br>
+<br>
+On linux systems (assuming you have git and gcc) you can run `setup.sh` from this repo.<br>
+it will automatically download and install the programs mentioned above
 
 # Addons
 if you want to make addon all you have to do is implement TTSEngine and add a factory function to `AeiouMod.engines`<br>
