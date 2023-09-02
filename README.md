@@ -1,5 +1,9 @@
 # Aeiou MC
 
+when first joining a MC server/singleplayer world it *will* give you a random voice which you may want to configure using `/tts cfg`<br>
+<br>
+run `/tts help` to get all commands
+
 # Setup
 
 ## Client Setup

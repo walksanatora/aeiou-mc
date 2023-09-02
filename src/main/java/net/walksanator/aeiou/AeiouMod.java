@@ -189,13 +189,18 @@ public class AeiouMod implements ModInitializer {
 								String[] helpMessage = new String[] {
 										"TTS has some subcommands.",
 										" tts: switched TTS engine (one of %s)".formatted(engines.keySet().toString()),
-										" cfg: changes TTS config values"
+										" cfg: changes TTS config values",
+										"      with no args, returns all config keys",
+										"      with key arg, returns the value for the config",
+										" ban: requires level 4, bans a user/uuid from getting their messages read",
+										" unban: same as ban but it allows you to allow a persons message to get read",
+										" isBanned: does not require OP, checks if a UUID/player is banned"
 								};
 								context.getSource().sendMessage(Text.literal(String.join("\n",helpMessage)));
 								return 1;
 							})
 					).then(literal("ban")
-							.then(argument("user", UuidArgumentType.uuid())
+							.then(literal("uuid").then(argument("user", UuidArgumentType.uuid())
 									.requires(source -> source.hasPermissionLevel(4))
 									.executes(ctx -> {
 										UUID banned = ctx.getArgument("user",UUID.class);
@@ -207,7 +212,7 @@ public class AeiouMod implements ModInitializer {
 										}
 										return 1;
 									})
-							).then(argument("user", EntityArgumentType.player())
+							)).then(literal("player").then(argument("user", EntityArgumentType.player())
 									.requires(source -> source.hasPermissionLevel(4))
 									.executes( ctx -> {
 										EntitySelector player = ctx.getArgument("user", EntitySelector.class);
@@ -220,9 +225,9 @@ public class AeiouMod implements ModInitializer {
 										}
 										return 1;
 									})
-							)
+							))
 					).then(literal("unban")
-							.then(argument("user", UuidArgumentType.uuid())
+							.then(literal("uuid").then(argument("user", UuidArgumentType.uuid())
 									.requires(source -> source.hasPermissionLevel(4))
 									.executes(ctx -> {
 										UUID banned = ctx.getArgument("user",UUID.class);
@@ -234,7 +239,7 @@ public class AeiouMod implements ModInitializer {
 										}
 										return 1;
 									})
-							).then(argument("user", EntityArgumentType.player())
+							)).then(literal("player").then(argument("user", EntityArgumentType.player())
 									.requires(source -> source.hasPermissionLevel(4))
 									.executes( ctx -> {
 										EntitySelector player = ctx.getArgument("user", EntitySelector.class);
@@ -247,9 +252,9 @@ public class AeiouMod implements ModInitializer {
 										}
 										return 1;
 									})
-							)
+							))
 					).then(literal("isBanned")
-							.then(argument("user", UuidArgumentType.uuid())
+							.then(literal("uuid").then(argument("user", UuidArgumentType.uuid())
 									.executes(ctx -> {
 										UUID banned = ctx.getArgument("user",UUID.class);
 										ServerCommandSource src = ctx.getSource();
@@ -260,7 +265,7 @@ public class AeiouMod implements ModInitializer {
 										}
 										return 1;
 									})
-							).then(argument("user", EntityArgumentType.player())
+							)).then(literal("player").then(argument("user", EntityArgumentType.player())
 									.executes( ctx -> {
 										EntitySelector player = ctx.getArgument("user", EntitySelector.class);
 										ServerCommandSource src = ctx.getSource();
@@ -272,7 +277,7 @@ public class AeiouMod implements ModInitializer {
 										}
 										return 1;
 									})
-							)
+							))
 					).then(literal("cfg")
 									.then(argument("key",StringArgumentType.string())
 											.then(argument("value",StringArgumentType.string())
