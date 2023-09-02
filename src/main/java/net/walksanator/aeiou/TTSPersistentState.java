@@ -70,19 +70,23 @@ public class TTSPersistentState extends PersistentState {
         return configurations.get(player);
     }
     public Map<String,String> put(UUID player,Map<String,String> cfgs) {
+        this.markDirty();
         return configurations.put(player,cfgs);
     }
     public Map<String,String> remove(UUID player) {
+        this.markDirty();
         return configurations.remove(player);
     }
 
     public boolean ban(UUID speaker) {
+        this.markDirty();
         return banned.add(speaker);
     }
     public boolean isBanned(UUID speaker) {
         return banned.contains(speaker);
     }
     public boolean unBan(UUID speaker) {
+        this.markDirty();
         return banned.remove(speaker);
     }
 

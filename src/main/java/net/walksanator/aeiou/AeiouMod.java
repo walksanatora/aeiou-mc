@@ -61,6 +61,14 @@ public class AeiouMod implements ModInitializer {
 		}
 
 		ServerLifecycleEvents.SERVER_STARTED.register((minecraftServer)-> config_state = TTSPersistentState.getServerState(minecraftServer));
+		ServerLifecycleEvents.SERVER_STOPPING.register((minecraftServer)-> {
+			for (UUID user : active_engines.keySet()) {
+				TTSEngine engine = active_engines.get(user);
+				config_state.put(user, engine.shutdownAndSave());
+			}
+			active_engines.clear();
+		});
+
 
 		ServerPlayConnectionEvents.JOIN.register((serverPlayNetworkHandler,packetSender,minecraftServer)-> {
 			if (config_state == null) {

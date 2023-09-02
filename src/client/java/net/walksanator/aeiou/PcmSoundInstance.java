@@ -21,6 +21,8 @@ public class PcmSoundInstance extends AbstractSoundInstance {
         return false;
     }
 
+
+
     @Override
     public AttenuationType getAttenuationType() {
         return AttenuationType.NONE;
