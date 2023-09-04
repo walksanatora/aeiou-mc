@@ -1,5 +1,10 @@
 #!/usr/bin/env bash
 
+echo "Note: this script will install dectalk and SAM"
+echo "to $HOME/.tts"
+echo "this script also requires that git and gcc be on PATH"
+read
+
 if ! type git; then
   echo "Missing git"
   exit 1
@@ -9,19 +14,20 @@ if ! type gcc; then
   exit 1
 fi
 
+mkdir -p $HOME/tts
+
 git clone https://github.com/walksanatora/SAM
 cd SAM
 make -j
-cp target/c/sam-inline /usr/bin/sam-inline
+cp target/c/sam-inline $HOME/.tts
 cd ..
 rm -rf SAM
 
 git clone https://github.com/dectalk/dectalk
 cd dectalk/src
-./configure
-make -j
+./configure --prefix=$HOME/.tts/dtalk --disable-audio
 make install -j
-mv /usr/bin/say /usr/bin/dectalk
+ln -s $HOME/.tts/dtalk/say $HOME/tts/dectalk
 cd ../..
 rm -rf dectalk
 
