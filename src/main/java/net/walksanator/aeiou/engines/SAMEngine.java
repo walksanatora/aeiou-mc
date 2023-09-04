@@ -9,16 +9,19 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 
 public class SAMEngine implements TTSEngine {
     private final Map<String,String> configs;
+    private final String sam_path;
 
-    SAMEngine(Map<String,String> cfg) {
+    SAMEngine(Map<String,String> cfg,String path) {
         this.configs = cfg;
+        this.sam_path = path;
     }
     @Override
     public Pair<Integer,ByteBuffer> renderMessage(String message) throws IOException, InterruptedException {
-        ProcessBuilder sam_builder = new ProcessBuilder("sam-inline",
+        ProcessBuilder sam_builder = new ProcessBuilder(sam_path,
                 configs.getOrDefault("pitch","0"),
                 configs.getOrDefault("speed","0"),
                 configs.getOrDefault("throat", "0"),
@@ -44,10 +47,6 @@ public class SAMEngine implements TTSEngine {
     @Override
     public void updateConfig(String key, String value) {
         configs.put(key,value);
-    }
-
-    public static TTSEngine initialize(Map<String, String> cfg) {
-        return new SAMEngine(cfg);
     }
 
     @Override
@@ -91,4 +90,9 @@ public class SAMEngine implements TTSEngine {
     public Map<String, String> shutdownAndSave() {
         return configs;
     }
+
+    public static Function<Map<String,String>,TTSEngine> buildFactory(String sam_path) {
+        return (cfg) -> new SAMEngine(cfg,sam_path);
+    }
 }
+

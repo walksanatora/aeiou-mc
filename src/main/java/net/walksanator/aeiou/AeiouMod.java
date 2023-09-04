@@ -15,7 +15,6 @@ import net.minecraft.command.argument.NbtCompoundArgumentType;
 import net.minecraft.command.argument.UuidArgumentType;
 import net.minecraft.entity.Entity;
 import net.minecraft.nbt.NbtCompound;
-import net.minecraft.nbt.NbtElement;
 import net.minecraft.network.PacketByteBuf;
 import net.minecraft.server.command.ServerCommandSource;
 import net.minecraft.server.network.ServerPlayerEntity;
@@ -25,6 +24,7 @@ import net.minecraft.util.Pair;
 import net.minecraft.util.math.Vec3d;
 import net.walksanator.aeiou.engines.DectalkEngine;
 import net.walksanator.aeiou.engines.SAMEngine;
+import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -56,14 +56,20 @@ public class AeiouMod implements ModInitializer {
 		// However, some things (like resources) may still be uninitialized.
 		// Proceed with mild caution.
 
-		if (isProgramOnPath("dectalk")) {
+		String prop = System.getProperty("user.home") + "/.tts";
+		List<String> paths = new ArrayList<>(List.of(System.getenv("PATH").split(System.getProperty("path.separator"))));
+		paths.add(prop);
+
+		String dtalk = which("dectalk", paths);
+		if (dtalk != null) {
 			LOGGER.info("Enabling dectalk module");
-			engines.put("dectalk", DectalkEngine::initialize);
+			engines.put("dectalk", DectalkEngine.buildFactory(dtalk));
 
 		}
-		if (isProgramOnPath("sam-inline")) {
+		String sam_inline = which("sam-inline",paths);
+		if (sam_inline != null) {
 			LOGGER.info("Enabling Software Automatic Mouth module");
-			engines.put("sam", SAMEngine::initialize);
+			engines.put("sam", SAMEngine.buildFactory(sam_inline));
 		}
 
 		ServerLifecycleEvents.SERVER_STARTED.register((minecraftServer)-> config_state = TTSPersistentState.getServerState(minecraftServer));
@@ -138,7 +144,7 @@ public class AeiouMod implements ModInitializer {
 					int size = sound.remaining();
 					int buffers = (size/(22050*5))+1;
 					LOGGER.info("we will need to send %d buffers for %d bytes".formatted(buffers,size));
-					List<ServerPlayerEntity> players = serverPlayerEntity.getServer().getPlayerManager().getPlayerList();
+					@SuppressWarnings("DataFlowIssue") List<ServerPlayerEntity> players = serverPlayerEntity.getServer().getPlayerManager().getPlayerList();
 					for (int i=1; i<=buffers;i++) {
 						PacketByteBuf pbb = PacketByteBufs.create();
 						pbb.writeUuid(player);
@@ -164,7 +170,6 @@ public class AeiouMod implements ModInitializer {
 			}
 		});
 
-		//noinspection CodeBlock2Expr
 		CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment)-> {
 			dispatcher.register(literal("tts")
 					.then(literal("tts")
@@ -427,10 +432,13 @@ public class AeiouMod implements ModInitializer {
 
 	}
 
-
-	public static boolean isProgramOnPath(String programName) {
-		String[] paths = System.getenv("PATH").split(System.getProperty("path.separator"));
-
+	/**
+	 * basically a java implemenation of `which`
+	 * @param programName the program name to search for
+	 * @return the full path of the program
+	 */
+	@Nullable
+	public static String which(String programName,List<String> paths) {
 		for (String path : paths) {
 			if (path.endsWith("/") || path.endsWith("\\")) {
 				path = path + programName;
@@ -439,10 +447,10 @@ public class AeiouMod implements ModInitializer {
 			}
 
 			if (new java.io.File(path).exists()) {
-				return true;
+				return path;
 			}
 		}
 
-		return false;
+		return null;
 	}
 }

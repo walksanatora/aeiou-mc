@@ -10,20 +10,23 @@ import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 
 public class DectalkEngine implements TTSEngine {
     private final static String[] voices = new String[]{"[:nb]","[:nd]","[:nf]","[:nh]","[:nk]","[:np]","[:nr]","[:nu]","[:nw]"};
     private final Map<String,String> configs;
+    private final String dt_path;
 
-    DectalkEngine(Map<String,String> cfg) {
+    DectalkEngine(Map<String,String> cfg, String path) {
         this.configs = cfg;
+        this.dt_path = path;
     }
 
     @Override
     public Pair<Integer,ByteBuffer> renderMessage(String message) throws IOException, InterruptedException {
         ProcessBuilder dectalk = new ProcessBuilder();
         dectalk.command(
-                "dectalk",
+                dt_path,
                 "-fo", "stdout:raw",
                 "-e", "2",
                 "-pre", configs.getOrDefault("init","[:phoneme on][:err ignore]"),
@@ -47,10 +50,6 @@ public class DectalkEngine implements TTSEngine {
 
     @Override
     public void resetConfig(String key) {configs.remove(key);}
-
-    public static TTSEngine initialize(Map<String, String> cfg) {
-        return new DectalkEngine(cfg);
-    }
 
     @Nullable
     @Override
@@ -89,5 +88,9 @@ public class DectalkEngine implements TTSEngine {
     @Override
     public Map<String, String> shutdownAndSave() {
         return configs;
+    }
+
+    public static Function<Map<String,String>,TTSEngine> buildFactory(String dectalk_path) {
+        return (cfg) -> new DectalkEngine(cfg,dectalk_path);
     }
 }
