@@ -23,6 +23,7 @@ import net.minecraft.util.Identifier;
 import net.minecraft.util.Pair;
 import net.minecraft.util.math.Vec3d;
 import net.walksanator.aeiou.engines.DectalkEngine;
+import net.walksanator.aeiou.engines.NullEngine;
 import net.walksanator.aeiou.engines.SAMEngine;
 import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
@@ -43,6 +44,14 @@ public class AeiouMod implements ModInitializer {
 	public static TTSPersistentState config_state;
 	public static Map<UUID,TTSEngine> active_engines = new HashMap<>();
 	private static byte rolling = -128;
+
+	public static final TTSEngine DEFAULT;
+	static {
+		HashMap<String,String> default_cfg = new HashMap<>();
+		default_cfg.put("@engine","null");
+		default_cfg.put("@enabled","false");
+		DEFAULT = NullEngine.build(default_cfg);
+	}
 
 	public static final Identifier S2CMessagePacketID = new Identifier("aeiou","pcm_audio");
 
@@ -72,6 +81,8 @@ public class AeiouMod implements ModInitializer {
 			engines.put("sam", SAMEngine.buildFactory(sam_inline));
 		}
 
+		engines.put("null",NullEngine::build);
+
 		ServerLifecycleEvents.SERVER_STARTED.register((minecraftServer)-> config_state = TTSPersistentState.getServerState(minecraftServer));
 		ServerLifecycleEvents.SERVER_STOPPING.register((minecraftServer)-> {
 			for (UUID user : active_engines.keySet()) {
@@ -93,6 +104,7 @@ public class AeiouMod implements ModInitializer {
 				//they don't have any config. generate a random one for them
 				Random rng = new Random();
 				List<String> keys = new ArrayList<>(engines.keySet());
+				keys.remove("null");
 				String engine = keys.get(rng.nextInt(keys.size()));
 				Function<Map<String,String>,TTSEngine> builder = engines.get(
 						engine
@@ -109,9 +121,9 @@ public class AeiouMod implements ModInitializer {
 					LOGGER.info("%s is using TTS: %s".formatted(name,engine));
 					active_engines.put(new_player, engines.get(engine).apply(possibly_config));
 				} else {
-					LOGGER.error("%s has config, but no TTS!?".formatted(name));
+					LOGGER.error("%s has config, but no valid TTS!?".formatted(name));
 					config_state.remove(new_player);
-					serverPlayNetworkHandler.disconnect(Text.literal("Invalid TTS config, TTS config wiped,please rejoin"));
+					serverPlayNetworkHandler.disconnect(Text.literal("Invalid TTS engine, TTS config wiped,please rejoin"));
 				}
 			}
 		});
@@ -155,7 +167,11 @@ public class AeiouMod implements ModInitializer {
 						byte[] subarray = new byte[22050*5];
 						sound.get(0,subarray,0,min(subarray.length,sound.remaining()));
 						pbb.writeBytes(sound);
-						for (ServerPlayerEntity reciever : players) {
+						List<ServerPlayerEntity> tts_enabled = players.stream().filter((pl)->{
+							String enabled = active_engines.getOrDefault(serverPlayerEntity.getUuid(), DEFAULT).getConfig("@enabled");
+							return Objects.equals(enabled, "true");
+						}).toList();
+						for (ServerPlayerEntity reciever : tts_enabled) {
 							ServerPlayNetworking.send(reciever,S2CMessagePacketID,new PacketByteBuf(pbb.copy()));
 						}
 					}
@@ -350,6 +366,22 @@ public class AeiouMod implements ModInitializer {
 								}
 								return 1;
 							})
+					).then(literal("opt")
+							.then(literal("in")
+									.executes((ctx)->{
+										UUID speaker = ctx.getSource().getEntityOrThrow().getUuid();
+										TTSEngine engine = active_engines.get(speaker);
+										engine.updateConfig("@enabled","true");
+										return 1;
+									})
+							).then(literal("out")
+									.executes((ctx)->{
+										UUID speaker = ctx.getSource().getEntityOrThrow().getUuid();
+										TTSEngine engine = active_engines.get(speaker);
+										engine.updateConfig("@enabled","false");
+										return 1;
+									})
+							)
 					)
 			);
 		dispatcher.register(literal("speak")
