@@ -156,7 +156,11 @@ public class AeiouMod implements ModInitializer {
 					int size = sound.remaining();
 					int buffers = (size/(22050*5))+1;
 					LOGGER.info("we will need to send %d buffers for %d bytes".formatted(buffers,size));
-					@SuppressWarnings("DataFlowIssue") List<ServerPlayerEntity> players = serverPlayerEntity.getServer().getPlayerManager().getPlayerList();
+					@SuppressWarnings("DataFlowIssue") List<ServerPlayerEntity> players = serverPlayerEntity.getServer().getPlayerManager().getPlayerList()
+							.stream().filter((pl)->{
+								String enabled = active_engines.getOrDefault(serverPlayerEntity.getUuid(), DEFAULT).getConfig("@enabled");
+								return Objects.equals(enabled, "true");
+							}).toList();
 					for (int i=1; i<=buffers;i++) {
 						PacketByteBuf pbb = PacketByteBufs.create();
 						pbb.writeUuid(player);
@@ -167,11 +171,7 @@ public class AeiouMod implements ModInitializer {
 						byte[] subarray = new byte[22050*5];
 						sound.get(0,subarray,0,min(subarray.length,sound.remaining()));
 						pbb.writeBytes(sound);
-						List<ServerPlayerEntity> tts_enabled = players.stream().filter((pl)->{
-							String enabled = active_engines.getOrDefault(serverPlayerEntity.getUuid(), DEFAULT).getConfig("@enabled");
-							return Objects.equals(enabled, "true");
-						}).toList();
-						for (ServerPlayerEntity reciever : tts_enabled) {
+						for (ServerPlayerEntity reciever : players) {
 							ServerPlayNetworking.send(reciever,S2CMessagePacketID,new PacketByteBuf(pbb.copy()));
 						}
 					}
