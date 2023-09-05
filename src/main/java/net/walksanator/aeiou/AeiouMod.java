@@ -194,6 +194,7 @@ public class AeiouMod implements ModInitializer {
 								TTSEngine engine = active_engines.get(speaker);
 								if (engine != null) {
 									context.getSource().sendMessage(Text.literal("Current engine: %s".formatted(engine.getConfig("@engine"))));
+									context.getSource().sendMessage(Text.literal("Available engines: %s".formatted(engines.keySet().toString())));
 								} else {
 									context.getSource().sendMessage(Text.literal("no active engine"));
 								}
@@ -229,7 +230,8 @@ public class AeiouMod implements ModInitializer {
 										"      with key arg, returns the value for the config",
 										" ban: requires level 4, bans a user/uuid from getting their messages read",
 										" unban: same as ban but it allows you to allow a persons message to get read",
-										" isBanned: does not require OP, checks if a UUID/player is banned"
+										" isBanned: does not require OP, checks if a UUID/player is banned",
+										" opt: either in/out opts in/out of hearing TTS (you can adjust volume under Player Volume"
 								};
 								context.getSource().sendMessage(Text.literal(String.join("\n",helpMessage)));
 								return 1;
