@@ -50,6 +50,9 @@ public class SAMWasmEngine implements TTSEngine {
             buffer[i] = (byte) mem.i32_load8_s(pcm_buf_start,i);
         }
         ByteBuffer temp = ByteBuffer.wrap(buffer);
+        sam.w2k_dlfree(s_alloc);
+        sam.w2k_dlfree(res_ptr);
+
         return new Pair<>(22050,temp);
     }
 
