@@ -15,13 +15,13 @@ if ! type gcc; then
 fi
 
 mkdir -p $HOME/tts
-
-git clone https://github.com/walksanatora/SAM
-cd SAM
-make -j
-cp target/c/sam-inline $HOME/.tts
-cd ..
-rm -rf SAM
+## no longer needed as i compiled it to WASM
+#git clone https://github.com/walksanatora/SAM
+#cd SAM
+#make -j
+#cp target/c/sam-inline $HOME/.tts
+#cd ..
+#rm -rf SAM
 
 git clone https://github.com/dectalk/dectalk
 cd dectalk/src

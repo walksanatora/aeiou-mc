@@ -14,12 +14,12 @@ import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.function.Function;
 
-public class SAMEngine implements TTSEngine {
+public class SAMWasmEngine implements TTSEngine {
     private final ModuleRegistry mr;
     private final SamWasm sam;
     private final Map<String,String> configs;
 
-    SAMEngine(Map<String,String> cfg) {
+    SAMWasmEngine(Map<String,String> cfg) {
         mr = new ModuleRegistry();
         Functions wasmVM = new Functions(mr);
         wasmVM.setupModuleRegister();
@@ -27,7 +27,7 @@ public class SAMEngine implements TTSEngine {
         this.configs = cfg;
     }
     @Override
-    public Pair<Integer,ByteBuffer> renderMessage(String message) throws IOException, InterruptedException {
+    public Pair<Integer,ByteBuffer> renderMessage(String message) throws IOException {
         Function<String,Integer> x = (k)-> Integer.parseInt(configs.getOrDefault(k,"0"));
         sam.w2k_setupSpeak(
                 x.apply("pitch"),
@@ -103,8 +103,8 @@ public class SAMEngine implements TTSEngine {
         return configs;
     }
 
-    public static TTSEngine buildFactory(Map<String,String> cfg) {
-        return new SAMEngine(cfg);
+    public static TTSEngine build(Map<String,String> cfg) {
+        return new SAMWasmEngine(cfg);
     }
 }
 
