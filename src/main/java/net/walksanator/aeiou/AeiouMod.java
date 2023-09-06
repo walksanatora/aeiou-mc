@@ -24,6 +24,7 @@ import net.minecraft.util.Pair;
 import net.minecraft.util.math.Vec3d;
 import net.walksanator.aeiou.engines.DectalkEngine;
 import net.walksanator.aeiou.engines.NullEngine;
+import net.walksanator.aeiou.engines.SAMNativeEngine;
 import net.walksanator.aeiou.engines.SAMWasmEngine;
 import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
@@ -75,9 +76,14 @@ public class AeiouMod implements ModInitializer {
 
 		}
 
-		LOGGER.info("Enabling Software Automatic Mouth module (WASM embedded)");
-		engines.put("sam", SAMWasmEngine::build);
-
+		String sam = which("sam-inline",paths);
+		if (sam != null) {
+			LOGGER.info("Enabling Software Automatic Mout module (Native)");
+			engines.put("sam", SAMNativeEngine.buildFactory(sam));
+		} else {
+			LOGGER.info("Enabling Software Automatic Mouth module (WASM embedded)");
+			engines.put("sam", SAMWasmEngine::build);
+		}
 		engines.put("null",NullEngine::build);
 
 		ServerLifecycleEvents.SERVER_STARTED.register((minecraftServer)-> config_state = TTSPersistentState.getServerState(minecraftServer));
