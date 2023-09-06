@@ -25,9 +25,14 @@ import net.minecraft.util.math.Vec3d;
 import net.walksanator.aeiou.engines.DectalkEngine;
 import net.walksanator.aeiou.engines.NullEngine;
 import net.walksanator.aeiou.engines.SAMEngine;
+import net.walksanator.aeiou.wasm.LinearMemorySupport;
+import net.walksanator.aeiou.wasm.SamWasm;
 import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import wasm_rt_impl.Memory;
+import wasm_rt_impl.ModuleRegistry;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -39,6 +44,7 @@ import static net.minecraft.server.command.CommandManager.argument;
 import static net.minecraft.server.command.CommandManager.literal;
 
 public class AeiouMod implements ModInitializer {
+	public static Functions FUNCTIONS;
 
 	public static final Map<String, Function<Map<String,String>,TTSEngine>> engines = new HashMap<>();
 	public static TTSPersistentState config_state;
@@ -64,6 +70,24 @@ public class AeiouMod implements ModInitializer {
 		// This code runs as soon as Minecraft is in a mod-load-ready state.
 		// However, some things (like resources) may still be uninitialized.
 		// Proceed with mild caution.
+		ModuleRegistry mr = new ModuleRegistry();
+
+		FUNCTIONS = new Functions(mr);
+		FUNCTIONS.setupModuleRegister();
+
+		SamWasm sam = new SamWasm(mr,"samwasm");
+
+		Memory mem = mr.importMemory("Z_env","Z_memory");
+
+		int text_ptr = sam.w2k_dlmalloc(256);
+		int bytes_written = LinearMemorySupport.INSTANCE.writeCString(mem,text_ptr,"Hello World");
+
+		sam.w2k_setupSpeak(0,0,0,0);
+		int result_ptr = sam.w2k_speakText(text_ptr);
+
+		int audio_res = mem.i32_load(result_ptr);
+		int buf_size = sam.w2k_GetBufferLength();
+		int buf_start = sam.w2k_GetBuffer();
 
 		String prop = System.getProperty("user.home") + "/.tts";
 		List<String> paths = new ArrayList<>(List.of(System.getenv("PATH").split(System.getProperty("path.separator"))));
@@ -75,11 +99,9 @@ public class AeiouMod implements ModInitializer {
 			engines.put("dectalk", DectalkEngine.buildFactory(dtalk));
 
 		}
-		String sam_inline = which("sam-inline",paths);
-		if (sam_inline != null) {
-			LOGGER.info("Enabling Software Automatic Mouth module");
-			engines.put("sam", SAMEngine.buildFactory(sam_inline));
-		}
+
+		LOGGER.info("Enabling Software Automatic Mouth module (WASM embedded)");
+		engines.put("sam", SAMEngine.buildFactory(sam_inline));
 
 		engines.put("null",NullEngine::build);
 

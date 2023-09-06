@@ -2,42 +2,54 @@ package net.walksanator.aeiou.engines;
 
 import net.minecraft.util.Pair;
 import net.walksanator.aeiou.AeiouMod;
+import net.walksanator.aeiou.Functions;
 import net.walksanator.aeiou.TTSEngine;
+import net.walksanator.aeiou.wasm.LinearMemorySupport;
+import net.walksanator.aeiou.wasm.SamWasm;
+import wasm_rt_impl.Memory;
+import wasm_rt_impl.ModuleRegistry;
 
 import java.io.*;
 import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
 import java.util.*;
-import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
 public class SAMEngine implements TTSEngine {
+    private final ModuleRegistry mr;
+    private final SamWasm sam;
     private final Map<String,String> configs;
-    private final String sam_path;
 
-    SAMEngine(Map<String,String> cfg,String path) {
+    SAMEngine(Map<String,String> cfg) {
+        mr = new ModuleRegistry();
+        Functions wasmVM = new Functions(mr);
+        wasmVM.setupModuleRegister();
+        sam = new SamWasm(mr,"wasam");
         this.configs = cfg;
-        this.sam_path = path;
     }
     @Override
     public Pair<Integer,ByteBuffer> renderMessage(String message) throws IOException, InterruptedException {
-        ProcessBuilder sam_builder = new ProcessBuilder(sam_path,
-                configs.getOrDefault("pitch","0"),
-                configs.getOrDefault("speed","0"),
-                configs.getOrDefault("throat", "0"),
-                configs.getOrDefault("mouth","0")
+        Function<String,Integer> x = (k)-> Integer.parseInt(configs.getOrDefault(k,"0"));
+        sam.w2k_setupSpeak(
+                x.apply("pitch"),
+                x.apply("speed"),
+                x.apply("throat"),
+                x.apply("mouth")
         );
-        sam_builder.redirectError(ProcessBuilder.Redirect.INHERIT);
-        Process sub = sam_builder.start();
-        AeiouMod.LOGGER.info("sam instance is non-null, speaking");
-        OutputStream out = sub.getOutputStream();
-        out.write(message.getBytes(StandardCharsets.UTF_8));
-        out.flush();
-        out.close();
-        AeiouMod.LOGGER.info("written message to sam instance STDIN");
-        InputStream input = sub.getInputStream();
-        sub.waitFor(500, TimeUnit.MILLISECONDS);
-        ByteBuffer temp = ByteBuffer.wrap(input.readAllBytes());
+        int s_alloc = sam.w2k_dlmalloc(256);
+        Memory mem = mr.importMemory("Z_env","Z_memory");
+        LinearMemorySupport.INSTANCE.writeCString(mem,s_alloc,message);
+        AeiouMod.LOGGER.info("SAM memory setup");
+        int res_ptr = sam.w2k_speakText(s_alloc);
+        if (mem.i32_load(res_ptr)==0) {
+            throw new IOException("Failed to render message");
+        }
+        int pcm_buf_start = mem.i32_load(res_ptr,8);
+        int pcm_buf_size = mem.i32_load(res_ptr,4);
+        byte[] buffer = new byte[pcm_buf_size];
+        for (int i = 0;i<pcm_buf_size;i++) {
+            buffer[i] = (byte) mem.i32_load8_s(pcm_buf_start,i);
+        }
+        ByteBuffer temp = ByteBuffer.wrap(buffer);
         return new Pair<>(22050,temp);
     }
 
@@ -91,8 +103,8 @@ public class SAMEngine implements TTSEngine {
         return configs;
     }
 
-    public static Function<Map<String,String>,TTSEngine> buildFactory(String sam_path) {
-        return (cfg) -> new SAMEngine(cfg,sam_path);
+    public static TTSEngine buildFactory(Map<String,String> cfg) {
+        return new SAMEngine(cfg);
     }
 }
 
