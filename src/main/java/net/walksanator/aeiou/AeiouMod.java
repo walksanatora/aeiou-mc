@@ -1,6 +1,7 @@
 package net.walksanator.aeiou;
 
 import com.mojang.brigadier.arguments.DoubleArgumentType;
+import com.mojang.brigadier.arguments.FloatArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
@@ -27,6 +28,7 @@ import net.walksanator.aeiou.engines.NullEngine;
 import net.walksanator.aeiou.engines.SAMNativeEngine;
 import net.walksanator.aeiou.engines.SAMWasmEngine;
 import org.jetbrains.annotations.Nullable;
+import org.joml.Vector3f;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -54,7 +56,7 @@ public class AeiouMod implements ModInitializer {
 	}
 
 	public static final Identifier S2CMessagePacketID = new Identifier("aeiou","pcm_audio");
-
+	public static final Identifier S2CMuteCommand =  new Identifier("aeiou","cmd_mute");
 	// This logger is used to write text to the console and the log file.
 	// It is considered best practice to use your mod id as the logger's name.
 	// That way, it's clear which mod wrote info, warnings, and errors.
@@ -171,6 +173,7 @@ public class AeiouMod implements ModInitializer {
 						pbb.writeByte(buffers);
 						pbb.writeByte(i);
 						pbb.writeInt(hz);
+						pbb.writeBoolean(false);
 						byte[] subarray = new byte[22050*5];
 						sound.get(0,subarray,0,min(subarray.length,sound.remaining()));
 						pbb.writeBytes(sound);
@@ -387,18 +390,39 @@ public class AeiouMod implements ModInitializer {
 										return 1;
 									})
 							)
+					).then(literal("mute")
+							.then(argument("who",EntityArgumentType.player())
+									.executes(ctx -> {
+										PacketByteBuf pbb = PacketByteBufs.create();
+										pbb.writeBoolean(true);
+										pbb.writeUuid(ctx.getArgument("who", EntitySelector.class).getPlayer(ctx.getSource()).getUuid());
+										ServerPlayNetworking.send(ctx.getSource().getPlayerOrThrow(),S2CMuteCommand,pbb);
+										return 1;
+									})
+							)
+					).then(literal("unmute")
+							.then(argument("who",EntityArgumentType.player())
+									.executes(ctx -> {
+										PacketByteBuf pbb = PacketByteBufs.create();
+										pbb.writeBoolean(false);
+										pbb.writeUuid(ctx.getArgument("who", EntitySelector.class).getPlayer(ctx.getSource()).getUuid());
+										ServerPlayNetworking.send(ctx.getSource().getPlayerOrThrow(),S2CMuteCommand,pbb);
+										return 1;
+									})
+							)
 					)
 			);
-		dispatcher.register(literal("speak")
+
+			dispatcher.register(literal("speak")
 				.then(argument("engine",StringArgumentType.word())
 						.then(argument("config", NbtCompoundArgumentType.nbtCompound())
-								.then(argument("distance", DoubleArgumentType.doubleArg(0.0))
+								.then(argument("distance", FloatArgumentType.floatArg(0.0f))
 										.then(argument("message", StringArgumentType.greedyString())
 											.executes(ctx -> {
 												String engine = ctx.getArgument("engine",String.class);
 												NbtCompound conf = ctx.getArgument("config",NbtCompound.class);
 												String message = ctx.getArgument("message",String.class);
-												Double distance = ctx.getArgument("distance",Double.class);
+												float distance = ctx.getArgument("distance",Float.class);
 												Entity p_entity = ctx.getSource().getEntity();
 												UUID speaker;
 												if (p_entity == null) {
@@ -418,7 +442,6 @@ public class AeiouMod implements ModInitializer {
 																key,
 																conf.getString(key)
 														);
-
 													}
 
 													TTSEngine engine_i = engines.get(engine).apply(proc);
@@ -434,6 +457,7 @@ public class AeiouMod implements ModInitializer {
 														LOGGER.info("we will need to send %d buffers for %d bytes".formatted(buffers,size));
 														Vec3d pos = ctx.getSource().getPosition();
 														List<ServerPlayerEntity> players = ctx.getSource().getServer().getPlayerManager().getPlayerList();
+														Vector3f speaker_pos = ctx.getSource().getPosition().toVector3f();
 														for (int i=1; i<=buffers;i++) {
 															PacketByteBuf pbb = PacketByteBufs.create();
 															pbb.writeUuid(speaker);
@@ -441,13 +465,14 @@ public class AeiouMod implements ModInitializer {
 															pbb.writeByte(buffers);
 															pbb.writeByte(i);
 															pbb.writeInt(hz);
+															pbb.writeBoolean(true);
+															pbb.writeVector3f(speaker_pos);
+															pbb.writeFloat(distance);
 															byte[] subarray = new byte[22050*5];
 															sound.get(0,subarray,0,min(subarray.length,sound.remaining()));
 															pbb.writeBytes(sound);
 															for (ServerPlayerEntity reciever : players) {
-																if (distance == 0.0 || pos.isInRange(reciever.getPos(),distance)) {
-																	ServerPlayNetworking.send(reciever,S2CMessagePacketID,new PacketByteBuf(pbb.copy()));
-																}
+																ServerPlayNetworking.send(reciever,S2CMessagePacketID,new PacketByteBuf(pbb.copy()));
 															}
 														}
 														rolling+=1;

@@ -2,13 +2,17 @@ package net.walksanator.aeiou;
 
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
+import org.joml.Vector3f;
 
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.UUID;
 
 public class AeiouModClient implements ClientModInitializer {
 	public static HashMap<Byte,BufWrapper> bufs = new HashMap<>();
+	private static final List<UUID> shushed = new ArrayList<>();
 	@Override
 	public void onInitializeClient() {
 		// This entrypoint is suitable for setting up client-specific logic, such as rendering.
@@ -16,10 +20,17 @@ public class AeiouModClient implements ClientModInitializer {
 		ClientPlayNetworking.registerGlobalReceiver(AeiouMod.S2CMessagePacketID,(client,handler,buf,response) -> {
 			AeiouMod.LOGGER.debug("recieved packet on client");
 			UUID speaker = buf.readUuid();
+			if (shushed.contains(speaker)) {return;}
 			byte roller = buf.readByte();
 			byte total_buffers = buf.readByte();
 			byte current_buffer = buf.readByte();
 			int hz = buf.readInt();
+			boolean is_positional = buf.readBoolean();
+			Vector3f pos = new Vector3f(0,0,0); float range = 0.0f;
+			if (is_positional) {
+				pos = buf.readVector3f();
+				range = buf.readFloat();
+			}
 			ByteBuffer bbuf = buf.readBytes(buf.readableBytes()).nioBuffer();
 			BufWrapper wrapped = bufs.getOrDefault(roller,new BufWrapper());
 			wrapped.append(bbuf);
@@ -27,10 +38,20 @@ public class AeiouModClient implements ClientModInitializer {
 			if (total_buffers == current_buffer) {
 				AeiouMod.LOGGER.debug("final buffer recieved. playing audio");
 				ByteBuffer audio = wrapped.concat();
-				client.getSoundManager().play(new PcmSoundInstance(audio,hz));
+				client.getSoundManager().play(new PcmSoundInstance(audio,hz,is_positional? pos : client.player.getPos().toVector3f(), range));
 				bufs.remove(roller);
 			} else {
 				bufs.put(roller,wrapped);
+			}
+		});
+
+		ClientPlayNetworking.registerGlobalReceiver(AeiouMod.S2CMuteCommand,(client,handler,buf,response) -> {
+			boolean ban = buf.readBoolean();
+			UUID target = buf.readUuid();
+			if (ban) {
+				shushed.add(target);
+			} else {
+				shushed.remove(target);
 			}
 		});
 	}
