@@ -1,6 +1,5 @@
 package net.walksanator.aeiou;
 
-import com.mojang.brigadier.arguments.DoubleArgumentType;
 import com.mojang.brigadier.arguments.FloatArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import net.fabricmc.api.ModInitializer;
@@ -22,7 +21,6 @@ import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.Pair;
-import net.minecraft.util.math.Vec3d;
 import net.walksanator.aeiou.engines.DectalkEngine;
 import net.walksanator.aeiou.engines.NullEngine;
 import net.walksanator.aeiou.engines.SAMNativeEngine;
@@ -61,6 +59,46 @@ public class AeiouMod implements ModInitializer {
 	// It is considered best practice to use your mod id as the logger's name.
 	// That way, it's clear which mod wrote info, warnings, and errors.
     public static final Logger LOGGER = LoggerFactory.getLogger("aeiou");
+	public static void speakMessage(TTSEngine engine, UUID sender, String message, List<ServerPlayerEntity> targets, boolean isPositional, @Nullable Vector3f pos, @Nullable Float volume) {
+		LOGGER.info("speaking message: \"%s\" for %s".formatted(message,sender.toString()));
+		if (config_state.isBanned(sender)) {
+			return; // early exit for the banland
+		}
+		try {
+			LOGGER.info("rendering message");
+			Pair<Integer,ByteBuffer> sound_data = engine.renderMessage(message);
+			int hz = sound_data.getLeft();
+			ByteBuffer sound = sound_data.getRight();
+			LOGGER.info("rendered message");
+			if (sound==null) {throw new IOException();}
+			int size = sound.remaining();
+			int buffers = (size/(22050*5))+1;
+			LOGGER.info("we will need to send %d buffers for %d bytes".formatted(buffers,size));
+			for (int i=1; i<=buffers;i++) {
+				PacketByteBuf pbb = PacketByteBufs.create();
+				pbb.writeUuid(sender);
+				pbb.writeByte(rolling);
+				pbb.writeByte(buffers);
+				pbb.writeByte(i);
+				pbb.writeInt(hz);
+				pbb.writeBoolean(isPositional);
+				if (isPositional) {
+					pbb.writeVector3f(pos);
+					pbb.writeFloat(volume);
+				}
+				byte[] subarray = new byte[22050*5];
+				sound.get(0,subarray,0,min(subarray.length,sound.remaining()));
+				pbb.writeBytes(sound);
+				for (ServerPlayerEntity reciever : targets) {
+					ServerPlayNetworking.send(reciever,S2CMessagePacketID,new PacketByteBuf(pbb.copy()));
+				}
+			}
+			rolling+=1;
+		} catch (IOException | InterruptedException e) {
+			LOGGER.warn("Failed to render message");
+			e.printStackTrace();
+		}
+	}
 	@Override
 	public void onInitialize() {
 		// This code runs as soon as Minecraft is in a mod-load-ready state.
@@ -80,7 +118,7 @@ public class AeiouMod implements ModInitializer {
 
 		String sam = which("sam-inline",paths);
 		if (sam != null) {
-			LOGGER.info("Enabling Software Automatic Mout module (Native)");
+			LOGGER.info("Enabling Software Automatic Mouth module (Native)");
 			engines.put("sam", SAMNativeEngine.buildFactory(sam));
 		} else {
 			LOGGER.info("Enabling Software Automatic Mouth module (WASM embedded)");
@@ -146,49 +184,15 @@ public class AeiouMod implements ModInitializer {
 			if (config_state.isBanned(player)) {
 				return;
 			}
-			String message = signedMessage.getContent().getString();
-			LOGGER.info(message);
-			LOGGER.info(serverPlayerEntity.getUuidAsString());
+			@SuppressWarnings("DataFlowIssue") List<ServerPlayerEntity> players = serverPlayerEntity.getServer().getPlayerManager().getPlayerList()
+					.stream().filter((pl)->{
+						String enabled = active_engines.getOrDefault(pl.getUuid(), DEFAULT).getConfig("@enabled");
+						return Objects.equals(enabled, "true");
+					}).toList();
 			if (active_engines.containsKey(player)) {
-				LOGGER.info("%s has active TTS program".formatted(player));
-				try {
-					LOGGER.info("rendering message");
-					Pair<Integer,ByteBuffer> sound_data = active_engines.get(player).renderMessage(message);
-					int hz = sound_data.getLeft();
-					ByteBuffer sound = sound_data.getRight();
-					LOGGER.info("rendered message");
-					if (sound==null) {throw new IOException();}
-					int size = sound.remaining();
-					int buffers = (size/(22050*5))+1;
-					LOGGER.info("we will need to send %d buffers for %d bytes".formatted(buffers,size));
-					@SuppressWarnings("DataFlowIssue") List<ServerPlayerEntity> players = serverPlayerEntity.getServer().getPlayerManager().getPlayerList()
-							.stream().filter((pl)->{
-								String enabled = active_engines.getOrDefault(serverPlayerEntity.getUuid(), DEFAULT).getConfig("@enabled");
-								return Objects.equals(enabled, "true");
-							}).toList();
-					for (int i=1; i<=buffers;i++) {
-						PacketByteBuf pbb = PacketByteBufs.create();
-						pbb.writeUuid(player);
-						pbb.writeByte(rolling);
-						pbb.writeByte(buffers);
-						pbb.writeByte(i);
-						pbb.writeInt(hz);
-						pbb.writeBoolean(false);
-						byte[] subarray = new byte[22050*5];
-						sound.get(0,subarray,0,min(subarray.length,sound.remaining()));
-						pbb.writeBytes(sound);
-						for (ServerPlayerEntity reciever : players) {
-							ServerPlayNetworking.send(reciever,S2CMessagePacketID,new PacketByteBuf(pbb.copy()));
-						}
-					}
-					rolling+=1;
-
-				} catch (IOException | InterruptedException e) {
-					LOGGER.warn("Failed to render message");
-					e.printStackTrace();
-				}
+				speakMessage(active_engines.get(player),player,signedMessage.getContent().getString(),players,false,null,null);
 			} else {
-				LOGGER.warn("%s has no active TTS, it should have been made when they joined!!".formatted(serverPlayerEntity.getName().getString()));
+				LOGGER.warn("somehow player %s does not have a active TTS engine!".formatted(player));
 			}
 		});
 
@@ -237,7 +241,12 @@ public class AeiouMod implements ModInitializer {
 										" ban: requires level 4, bans a user/uuid from getting their messages read",
 										" unban: same as ban but it allows you to allow a persons message to get read",
 										" isBanned: does not require OP, checks if a UUID/player is banned",
-										" opt: either in/out opts in/out of hearing TTS (you can adjust volume under Player Volume"
+										" opt: either in/out opts in/out of hearing TTS (you can adjust volume under Player Volume",
+										"speak also accepts arguments in this order",
+										" engine, same engine you pass into /tts tts to set TTS engine",
+										" config, NBT config values to pass into the TTS, check /tts cfg to get all keys",
+										" volume, a float volume, 0 means \"infinite\" (plays at players feet)",
+										" message, the message that will get spoken with all the specified parameters"
 								};
 								context.getSource().sendMessage(Text.literal(String.join("\n",helpMessage)));
 								return 1;
@@ -416,13 +425,15 @@ public class AeiouMod implements ModInitializer {
 			dispatcher.register(literal("speak")
 				.then(argument("engine",StringArgumentType.word())
 						.then(argument("config", NbtCompoundArgumentType.nbtCompound())
-								.then(argument("distance", FloatArgumentType.floatArg(0.0f))
+								.then(argument("volume", FloatArgumentType.floatArg(0.0f))
 										.then(argument("message", StringArgumentType.greedyString())
 											.executes(ctx -> {
 												String engine = ctx.getArgument("engine",String.class);
 												NbtCompound conf = ctx.getArgument("config",NbtCompound.class);
 												String message = ctx.getArgument("message",String.class);
-												float distance = ctx.getArgument("distance",Float.class);
+												float volume = ctx.getArgument("volume",Float.class);
+												Vector3f pos = ctx.getSource().getPosition().toVector3f();
+
 												Entity p_entity = ctx.getSource().getEntity();
 												UUID speaker;
 												if (p_entity == null) {
@@ -434,55 +445,20 @@ public class AeiouMod implements ModInitializer {
 												} else {
 													speaker = p_entity.getUuid();
 												}
-
-												if (engines.containsKey(engine)) {
-													Map<String,String> proc = new HashMap<>();
-													for (String key : conf.getKeys()) {
-														proc.put(
-																key,
-																conf.getString(key)
-														);
-													}
-
-													TTSEngine engine_i = engines.get(engine).apply(proc);
-
-													try {
-														Pair<Integer,ByteBuffer> sound_data = engine_i.renderMessage(message);
-														int hz = sound_data.getLeft();
-														ByteBuffer sound = sound_data.getRight();
-														LOGGER.info("rendered message");
-														if (sound==null) {throw new IOException();}
-														int size = sound.remaining();
-														int buffers = (size/(22050*5))+1;
-														LOGGER.info("we will need to send %d buffers for %d bytes".formatted(buffers,size));
-														Vec3d pos = ctx.getSource().getPosition();
-														List<ServerPlayerEntity> players = ctx.getSource().getServer().getPlayerManager().getPlayerList();
-														Vector3f speaker_pos = ctx.getSource().getPosition().toVector3f();
-														for (int i=1; i<=buffers;i++) {
-															PacketByteBuf pbb = PacketByteBufs.create();
-															pbb.writeUuid(speaker);
-															pbb.writeByte(rolling);
-															pbb.writeByte(buffers);
-															pbb.writeByte(i);
-															pbb.writeInt(hz);
-															pbb.writeBoolean(true);
-															pbb.writeVector3f(speaker_pos);
-															pbb.writeFloat(distance);
-															byte[] subarray = new byte[22050*5];
-															sound.get(0,subarray,0,min(subarray.length,sound.remaining()));
-															pbb.writeBytes(sound);
-															for (ServerPlayerEntity reciever : players) {
-																ServerPlayNetworking.send(reciever,S2CMessagePacketID,new PacketByteBuf(pbb.copy()));
-															}
-														}
-														rolling+=1;
-													} catch (IOException | InterruptedException e) {
-														ctx.getSource().sendError(Text.literal("Failed to play TTS message %s".formatted(e.getMessage())));
-													}
-
-												} else {
-													ctx.getSource().sendError(Text.literal("Engine is invalid, must be one of %s".formatted(engines.keySet().toString())));
+												Map<String,String> nbt_configs = new HashMap<>();
+												for (String key : conf.getKeys()) {
+													nbt_configs.put(
+															key,
+															conf.getString(key)
+													);
 												}
+												TTSEngine tts_engine = engines.get(engine).apply(nbt_configs);
+												List<ServerPlayerEntity> players = ctx.getSource().getServer().getPlayerManager().getPlayerList()
+														.stream().filter((pl)->{
+															String enabled = active_engines.getOrDefault(pl.getUuid(), DEFAULT).getConfig("@enabled");
+															return Objects.equals(enabled, "true");
+														}).toList();
+												speakMessage(tts_engine,speaker,message,players,true,pos,volume);
 												return 1;
 											})
 										)
@@ -495,7 +471,7 @@ public class AeiouMod implements ModInitializer {
 	}
 
 	/**
-	 * basically a java implemenation of `which`
+	 * basically a java implementation of `which`
 	 * @param programName the program name to search for
 	 * @return the full path of the program
 	 */

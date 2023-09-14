@@ -20,7 +20,7 @@ public class PcmSoundInstance extends AbstractSoundInstance {
         super(new Identifier("aeiou","pcm"),SoundCategory.PLAYERS,SoundInstance.createRandom());
         this.PCM_INSTANCE = new PcmAudioStream(buf,hz);
         this.pos = pos;
-        this.volume = dist>0?dist:0.0f;
+        this.volume = dist>0?dist:1.0f;
     }
 
     @Override
