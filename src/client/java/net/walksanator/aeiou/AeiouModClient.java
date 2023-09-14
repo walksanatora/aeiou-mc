@@ -2,7 +2,7 @@ package net.walksanator.aeiou;
 
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
-import org.joml.Vector3f;
+import net.minecraft.util.math.Vec3d;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -26,9 +26,12 @@ public class AeiouModClient implements ClientModInitializer {
 			byte current_buffer = buf.readByte();
 			int hz = buf.readInt();
 			boolean is_positional = buf.readBoolean();
-			Vector3f pos = new Vector3f(0,0,0); float range = 0.0f;
+			Vec3d pos = new Vec3d(0,0,0); float range = 0.0f;
 			if (is_positional) {
-				pos = buf.readVector3f();
+				double x = buf.readDouble();
+				double y = buf.readDouble();
+				double z = buf.readDouble();
+				pos = new Vec3d(x,y,z);
 				range = buf.readFloat();
 			}
 			ByteBuffer bbuf = buf.readBytes(buf.readableBytes()).nioBuffer();
@@ -38,7 +41,7 @@ public class AeiouModClient implements ClientModInitializer {
 			if (total_buffers == current_buffer) {
 				AeiouMod.LOGGER.debug("final buffer recieved. playing audio");
 				ByteBuffer audio = wrapped.concat();
-				client.getSoundManager().play(new PcmSoundInstance(audio,hz,is_positional? pos : client.player.getPos().toVector3f(), range));
+				client.getSoundManager().play(new PcmSoundInstance(audio,hz,is_positional? pos : client.player.getPos(), range));
 				bufs.remove(roller);
 			} else {
 				bufs.put(roller,wrapped);

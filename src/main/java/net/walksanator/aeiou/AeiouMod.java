@@ -21,12 +21,12 @@ import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.Pair;
+import net.minecraft.util.math.Vec3d;
 import net.walksanator.aeiou.engines.DectalkEngine;
 import net.walksanator.aeiou.engines.NullEngine;
 import net.walksanator.aeiou.engines.SAMNativeEngine;
 import net.walksanator.aeiou.engines.SAMWasmEngine;
 import org.jetbrains.annotations.Nullable;
-import org.joml.Vector3f;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -59,7 +59,7 @@ public class AeiouMod implements ModInitializer {
 	// It is considered best practice to use your mod id as the logger's name.
 	// That way, it's clear which mod wrote info, warnings, and errors.
     public static final Logger LOGGER = LoggerFactory.getLogger("aeiou");
-	public static void speakMessage(TTSEngine engine, UUID sender, String message, List<ServerPlayerEntity> targets, boolean isPositional, @Nullable Vector3f pos, @Nullable Float volume) {
+	public static void speakMessage(TTSEngine engine, UUID sender, String message, List<ServerPlayerEntity> targets, boolean isPositional, @Nullable Vec3d pos, @Nullable Float volume) {
 		LOGGER.info("speaking message: \"%s\" for %s".formatted(message,sender.toString()));
 		if (config_state.isBanned(sender)) {
 			return; // early exit for the banland
@@ -83,7 +83,9 @@ public class AeiouMod implements ModInitializer {
 				pbb.writeInt(hz);
 				pbb.writeBoolean(isPositional);
 				if (isPositional) {
-					pbb.writeVector3f(pos);
+					pbb.writeDouble(pos.x);
+					pbb.writeDouble(pos.y);
+					pbb.writeDouble(pos.z);
 					pbb.writeFloat(volume);
 				}
 				byte[] subarray = new byte[22050*5];
@@ -432,7 +434,7 @@ public class AeiouMod implements ModInitializer {
 												NbtCompound conf = ctx.getArgument("config",NbtCompound.class);
 												String message = ctx.getArgument("message",String.class);
 												float volume = ctx.getArgument("volume",Float.class);
-												Vector3f pos = ctx.getSource().getPosition().toVector3f();
+												Vec3d pos = ctx.getSource().getPosition();
 
 												Entity p_entity = ctx.getSource().getEntity();
 												UUID speaker;

@@ -8,15 +8,14 @@ import net.minecraft.util.Identifier;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.util.math.random.Random;
 import org.jetbrains.annotations.Nullable;
-import org.joml.Vector3f;
 
 import java.nio.ByteBuffer;
 import java.util.concurrent.CompletableFuture;
 
 public class PcmSoundInstance extends AbstractSoundInstance {
     PcmAudioStream PCM_INSTANCE;
-    Vector3f pos;
-    public PcmSoundInstance(ByteBuffer buf, int hz, Vector3f pos,float dist) {
+    Vec3d pos;
+    public PcmSoundInstance(ByteBuffer buf, int hz, Vec3d pos,float dist) {
         super(new Identifier("aeiou","pcm"),SoundCategory.PLAYERS,SoundInstance.createRandom());
         this.PCM_INSTANCE = new PcmAudioStream(buf,hz);
         this.pos = pos;
