@@ -11,7 +11,7 @@
 		"sources": "https://github.com/walksanatora/aeiou-mc"
 	},
 	"license": "CC0-1.0",
-	"icon": "assets/aeiou/icon.png",
+	"icon": "assets/aeiou/img.png",
 	"environment": "*",
 	"entrypoints": {
 		"main": [
