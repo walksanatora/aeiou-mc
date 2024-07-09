@@ -22,7 +22,6 @@ class Functions (private val mr: ModuleRegistry) {
                     val ptr = Z_memory.i32_load(iov + i*8)
                     val size = Z_memory.i32_load(iov + i*8 + 4)
                     val s = LinearMemorySupport.readCString(Z_memory, ptr, size)
-                    print(s)
                     written += size
                 }
                 Z_memory.i32_store(pnum, written)

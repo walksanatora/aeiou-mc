@@ -21,12 +21,16 @@ public interface TTSEngine {
      * there can be certain configs prefixed with @ which are meant to be used internally and not directly configured
      * current ones are
      * \@enabled: whether to speak messages by this user, "true" or "false"
-     * \@engine should be ignored as this shouldn't change
+     * \@engine should be ignored as this shouldn't change (used for loading the right engine)
      * @param key the key to set
      * @param value the value to set it to
      */
     void updateConfig(String key, String value);
 
+    /**
+     * resets a config value back to it's default value
+     * @param key the key to reset to
+     */
     void resetConfig(String key);
 
     /**

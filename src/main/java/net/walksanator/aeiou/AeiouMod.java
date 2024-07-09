@@ -95,8 +95,7 @@ public class AeiouMod implements ModInitializer {
 			}
 			rolling+=1;
 		} catch (IOException | InterruptedException e) {
-			LOGGER.warn("Failed to render message");
-			e.printStackTrace();
+			LOGGER.warn("Failed to render message",e);
 		}
 	}
 	@Override
